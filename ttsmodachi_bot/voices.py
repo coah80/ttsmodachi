@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass
 from hashlib import sha256
 from typing import Any
 
+from .engines import ENGINE_LTD_SWITCH, ENGINE_TL3DS, ENGINES
+
 
 LANG_TO_ID = {
     "useng": 1,
@@ -36,6 +38,7 @@ DEFAULT_TEXT_LIMIT = 2000
 
 @dataclass(frozen=True)
 class VoiceParams:
+    engine: str = ENGINE_TL3DS
     pitch: int = 50
     speed: int = 50
     quality: int = 50
@@ -49,6 +52,7 @@ class VoiceParams:
     def from_mapping(cls, values: dict[str, Any] | None) -> "VoiceParams":
         values = values or {}
         voice = cls(
+            engine=str(values.get("engine", ENGINE_TL3DS)),
             pitch=int(values.get("pitch", 50)),
             speed=int(values.get("speed", 50)),
             quality=int(values.get("quality", 50)),
@@ -78,6 +82,8 @@ class VoiceParams:
             raise ValueError("Intonation must be 1, 2, 3, or 4")
         if self.lang not in LANG_TO_ID:
             raise ValueError(f"Unsupported language: {self.lang}")
+        if self.engine not in ENGINES:
+            raise ValueError(f"Unsupported engine: {self.engine}")
 
     def engine_intonation(self) -> int:
         return self.intonation - 1
@@ -86,6 +92,8 @@ class VoiceParams:
         return LANG_TO_ID[self.lang]
 
     def rom(self) -> str:
+        if self.engine == ENGINE_LTD_SWITCH:
+            return "LTD"
         return LANG_TO_ROM[self.lang]
 
     def text_limit(self) -> int:
@@ -96,6 +104,7 @@ class VoiceParams:
 
     def cache_fragment(self) -> str:
         parts = (
+            self.engine,
             self.lang,
             str(self.pitch),
             str(self.speed),

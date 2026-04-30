@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from .audio import amplify_wav
 from .env import env_int, env_value
+from .engines import ENGINES
 from .panel import PANEL_HTML
 from .panel_tokens import PanelSession, parse_panel_token
 from .renderer_pool import RenderPayload, RendererPool
@@ -82,6 +83,7 @@ async def config(request: Request) -> dict[str, object]:
     require_panel_token(request)
     return {
         "builtins": {name: voice.to_dict() for name, voice in BUILTIN_VOICES.items()},
+        "engines": {engine_id: info.__dict__ for engine_id, info in ENGINES.items()},
         "languages": sorted(LANG_TO_ID),
         "defaultMessage": "This is a test message for the discord bot.",
         "maxSafeSamples": 48,

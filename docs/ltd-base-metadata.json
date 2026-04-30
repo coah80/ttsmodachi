@@ -1,0 +1,30 @@
+{
+  "engine": "ltd-switch",
+  "target": "base-nsp",
+  "nsp_sha256": "497f09bc3cfe386b08f98971cd2f263b1dfa0decbbb005a4b641705f520a1021",
+  "title_id": "010051f0207b2000",
+  "version": 0,
+  "main_build_id": "56BF85BD535413464CB75BB6C2683B6711E0BC0B000000000000000000000000",
+  "content": {
+    "program_nca": {
+      "id": "2e88713715d1d950ece6ce679a2fd456",
+      "size": 6676545536,
+      "hash": "2e88713715d1d950ece6ce679a2fd4560d78ba798c51d3fb8f08527baa637a6b"
+    },
+    "control_nca": {
+      "id": "c02906f8274a85d62ded78d24cceee7a",
+      "size": 1047552,
+      "hash": "c02906f8274a85d62ded78d24cceee7ab431329e0960d7805fafd2c4042191b4"
+    },
+    "legal_nca": {
+      "id": "6e0a4b374a16bf03675c701ebf05a23d",
+      "size": 146432,
+      "hash": "6e0a4b374a16bf03675c701ebf05a23d35ba8990d91ccb0f425fb906c829f104"
+    },
+    "meta_nca": {
+      "id": "41b261b615c9555cfb48a54b03a7603e",
+      "size": 3584,
+      "hash": "41b261b615c9555cfb48a54b03a7603e1dbcc44bc5335ac8acbf50c81c586089"
+    }
+  }
+}

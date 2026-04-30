@@ -5,6 +5,12 @@ __pycache__
 data
 cache
 *.cxi
+*.nsp
+*.nca
+*.xci
+*.keys
+ltd-work/
+ryubing-work/
 *.exe
 gamePatch/source/main.hks
 newcodeinfo.h
