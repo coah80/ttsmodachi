@@ -219,11 +219,11 @@ def readRenderedAudio(timeout=15, chunk_size=citra.MAX_REQUEST_DATA_SIZE):
     
     return bytes(data)
 
-def singText(text,pitch=50,speed=50,quality=50,tone=50,accent=50,intonation=0,language=1):
+def singText(text,pitch=50,speed=50,quality=50,tone=50,accent=50,intonation=0,language=1,ready_timeout=None):
     lyrics = songConverter.parseSong(text)
     fullData=b""
     for lyric in lyrics:
-        waitForStatus(1)
+        waitForStatus(1,timeout=ready_timeout or 15)
         sendLyric(lyric,pitch=pitch,speed=speed,quality=quality,tone=tone,accent=accent,intonation=intonation,language=language)
         waitForStatus(3)
         #readDebugData()
@@ -238,8 +238,8 @@ def singText(text,pitch=50,speed=50,quality=50,tone=50,accent=50,intonation=0,la
     print("Length: "+str(calcFileLength(fullData))+"s")
     return convertDataToMp3(fullData)
 
-def generateText(text,pitch=50,speed=50,quality=50,tone=50,accent=50,intonation=0,language=1):
-    waitForStatus(1,setLanguage=language)
+def generateText(text,pitch=50,speed=50,quality=50,tone=50,accent=50,intonation=0,language=1,ready_timeout=None):
+    waitForStatus(1,timeout=ready_timeout or 15,setLanguage=language)
     sendText(text,pitch=pitch,speed=speed,quality=quality,tone=tone,accent=accent,intonation=intonation,language=language)
     
     waitForStatus(3,timeout=10)

@@ -50,6 +50,7 @@ def _worker_loop(spec: WorkerSpec, inbox: mp.Queue, outbox: mp.Queue) -> None:
     env_setdefault("TTSMODACHI_POLL_INTERVAL", "0.01")
     idle_suspend_seconds = env_float("TTSMODACHI_IDLE_SUSPEND_SECONDS", 10)
     idle_resume_timeout = env_float("TTSMODACHI_IDLE_RESUME_TIMEOUT_MS", 1000) / 1000
+    render_ready_timeout = env_float("TTSMODACHI_RENDER_READY_TIMEOUT_SECONDS", 2)
     sys.path.insert(0, str(API_DIR))
 
     import citra  # type: ignore
@@ -65,6 +66,8 @@ def _worker_loop(spec: WorkerSpec, inbox: mp.Queue, outbox: mp.Queue) -> None:
     last_render_ms: float | None = None
     resume_count = 0
     restart_count = 0
+    render_retry_count = 0
+    last_recovery_reason: str | None = None
     last_error: str | None = None
 
     def citra_pid() -> int | None:
@@ -83,6 +86,8 @@ def _worker_loop(spec: WorkerSpec, inbox: mp.Queue, outbox: mp.Queue) -> None:
             "last_render_ms": last_render_ms,
             "resume_count": resume_count,
             "restart_count": restart_count,
+            "render_retry_count": render_retry_count,
+            "last_recovery_reason": last_recovery_reason,
             "last_error": last_error,
         }
 
@@ -101,9 +106,10 @@ def _worker_loop(spec: WorkerSpec, inbox: mp.Queue, outbox: mp.Queue) -> None:
         last_error = None
 
     def restart_emulator(reason: str) -> None:
-        nonlocal paused, restart_count, last_activity_at, last_error
+        nonlocal paused, restart_count, last_activity_at, last_error, last_recovery_reason
         restart_count += 1
         last_error = reason
+        last_recovery_reason = reason
         log_event(f"restarting Citra: {reason}")
         try:
             if paused and citra_pid() is not None:
@@ -148,6 +154,47 @@ def _worker_loop(spec: WorkerSpec, inbox: mp.Queue, outbox: mp.Queue) -> None:
             tts.waitForStatus(1, timeout=idle_resume_timeout)
         except Exception as error:
             restart_emulator(f"Citra did not respond after resume: {error}")
+
+    def render_once(payload: dict[str, Any], voice: VoiceParams) -> bytes:
+        if payload["mode"] == "sing":
+            audio = tts.singText(
+                payload["text"],
+                voice.pitch,
+                voice.speed,
+                voice.quality,
+                voice.tone,
+                voice.accent,
+                voice.engine_intonation(),
+                voice.lang_id(),
+                ready_timeout=render_ready_timeout,
+            )
+        else:
+            audio = tts.generateText(
+                payload["text"],
+                voice.pitch,
+                voice.speed,
+                voice.quality,
+                voice.tone,
+                voice.accent,
+                voice.engine_intonation(),
+                voice.lang_id(),
+                ready_timeout=render_ready_timeout,
+            )
+        if audio is None:
+            raise RuntimeError("Renderer returned no audio")
+        return audio
+
+    def render_with_recovery(payload: dict[str, Any], voice: VoiceParams) -> bytes:
+        nonlocal render_retry_count, last_recovery_reason
+        try:
+            return render_once(payload, voice)
+        except Exception as first_error:
+            reason = f"render failed before retry: {first_error}"
+            last_recovery_reason = reason
+            render_retry_count += 1
+            log_event(reason)
+            restart_emulator(reason)
+            return render_once(payload, voice)
 
     def maybe_suspend_emulator() -> None:
         nonlocal paused, last_activity_at, last_error
@@ -200,35 +247,14 @@ def _worker_loop(spec: WorkerSpec, inbox: mp.Queue, outbox: mp.Queue) -> None:
         active_job_count += 1
         last_activity_at = time.time()
         try:
-            resume_emulator()
             voice = VoiceParams.from_mapping(payload["voice"])
             if voice.rom() != spec.rom:
                 raise ValueError(f"Worker {spec.name} cannot render ROM {voice.rom()}")
+            if payload["mode"] not in {"text", "sing"}:
+                raise ValueError(f"Unsupported render mode: {payload['mode']}")
 
-            if payload["mode"] == "sing":
-                audio = tts.singText(
-                    payload["text"],
-                    voice.pitch,
-                    voice.speed,
-                    voice.quality,
-                    voice.tone,
-                    voice.accent,
-                    voice.engine_intonation(),
-                    voice.lang_id(),
-                )
-            else:
-                audio = tts.generateText(
-                    payload["text"],
-                    voice.pitch,
-                    voice.speed,
-                    voice.quality,
-                    voice.tone,
-                    voice.accent,
-                    voice.engine_intonation(),
-                    voice.lang_id(),
-                )
-            if audio is None:
-                raise RuntimeError("Renderer returned no audio")
+            resume_emulator()
+            audio = render_with_recovery(payload, voice)
             last_error = None
             outbox.put(
                 {
@@ -277,6 +303,8 @@ class WorkerLane:
         self.resume_count = 0
         self.worker_restart_count = 0
         self.process_restart_count = 0
+        self.render_retry_count = 0
+        self.last_recovery_reason: str | None = None
 
     def start(self) -> None:
         with self.lifecycle_lock:
@@ -292,6 +320,8 @@ class WorkerLane:
             self.last_render_ms = None
             self.resume_count = 0
             self.worker_restart_count = 0
+            self.render_retry_count = 0
+            self.last_recovery_reason = None
             self.inbox = mp.Queue()
             self.outbox = mp.Queue()
             self.process = mp.Process(target=_worker_loop, args=(self.spec, self.inbox, self.outbox), daemon=True)
@@ -404,6 +434,9 @@ class WorkerLane:
         )
         self.resume_count = int(state.get("resume_count", self.resume_count) or 0)
         self.worker_restart_count = int(state.get("restart_count", self.worker_restart_count) or 0)
+        self.render_retry_count = int(state.get("render_retry_count", self.render_retry_count) or 0)
+        if state.get("last_recovery_reason"):
+            self.last_recovery_reason = str(state["last_recovery_reason"])
         if state.get("last_error"):
             self.last_error = str(state["last_error"])
 
@@ -474,6 +507,8 @@ class RendererPool:
                     "last_render_ms": lane.last_render_ms,
                     "resume_count": lane.resume_count,
                     "restart_count": lane.process_restart_count + lane.worker_restart_count,
+                    "render_retry_count": lane.render_retry_count,
+                    "last_recovery_reason": lane.last_recovery_reason,
                     "last_error": lane.last_error,
                 }
                 for lane in self._lanes()
