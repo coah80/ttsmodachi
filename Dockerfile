@@ -57,10 +57,10 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt --break-system-packages
 
 COPY api /app/api
-COPY talkmodachi_bot /app/talkmodachi_bot
+COPY ttsmodachi_bot /app/ttsmodachi_bot
 COPY --from=citra-builder /src/build/bin/Release /usr/local/bin
 
 RUN mkdir -p /config /cache /data /opt
 COPY api/sdl2-config.ini /config/sdl2-config.ini
 
-CMD ["python", "-m", "talkmodachi_bot.discord_bot"]
+CMD ["python", "-m", "ttsmodachi_bot.discord_bot"]

@@ -9,6 +9,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from .env import env_value
+
 
 @dataclass(frozen=True)
 class PanelSession:
@@ -21,8 +23,8 @@ class PanelSession:
 
 def panel_signing_key() -> str | None:
     return (
-        os.environ.get("TALKMODACHI_PANEL_SIGNING_KEY")
-        or os.environ.get("TALKMODACHI_PANEL_TOKEN")
+        env_value("TTSMODACHI_PANEL_SIGNING_KEY")
+        or env_value("TTSMODACHI_PANEL_TOKEN")
         or os.environ.get("DISCORD_TOKEN")
     )
 
@@ -37,7 +39,7 @@ def create_panel_token(
 ) -> str:
     key = panel_signing_key()
     if not key:
-        raise RuntimeError("TALKMODACHI_PANEL_SIGNING_KEY is required for voice panel links")
+        raise RuntimeError("TTSMODACHI_PANEL_SIGNING_KEY is required for voice panel links")
 
     now = int(time.time())
     payload = {

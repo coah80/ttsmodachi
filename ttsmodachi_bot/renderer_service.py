@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from .audio import amplify_wav
+from .env import env_int, env_value
 from .panel import PANEL_HTML
 from .panel_tokens import PanelSession, parse_panel_token
 from .renderer_pool import RenderPayload, RendererPool
@@ -29,21 +30,21 @@ class SaveVoiceRequest(BaseModel):
     voice: dict[str, int | str] = Field(default_factory=dict)
 
 
-app = FastAPI(title="Talkmodachi Renderer", version="0.1.0")
+app = FastAPI(title="TTSModachi Renderer", version="0.1.0")
 pool: RendererPool | None = None
 storage: Storage | None = None
-cache_dir = Path(os.environ.get("TALKMODACHI_CACHE_DIR", "/cache"))
-database_path = Path(os.environ.get("DATABASE_PATH", "/data/talkmodachi.sqlite3"))
-engine_version = os.environ.get("TALKMODACHI_ENGINE_VERSION", "talkmodachi-v1")
+cache_dir = Path(env_value("TTSMODACHI_CACHE_DIR", "/cache") or "/cache")
+database_path = Path(os.environ.get("DATABASE_PATH", "/data/ttsmodachi.sqlite3"))
+engine_version = env_value("TTSMODACHI_ENGINE_VERSION", "ttsmodachi-v1") or "ttsmodachi-v1"
 inflight_lock = asyncio.Lock()
 inflight_tasks: dict[str, asyncio.Task[dict[str, object]]] = {}
 render_semaphore: asyncio.Semaphore | None = None
-max_inflight_renders = int(os.environ.get("TALKMODACHI_MAX_INFLIGHT_RENDERS", "32"))
-cache_max_bytes = int(os.environ.get("TALKMODACHI_CACHE_MAX_BYTES", str(1024 * 1024 * 1024)))
-panel_token = os.environ.get("TALKMODACHI_PANEL_TOKEN")
+max_inflight_renders = env_int("TTSMODACHI_MAX_INFLIGHT_RENDERS", 32)
+cache_max_bytes = env_int("TTSMODACHI_CACHE_MAX_BYTES", 1024 * 1024 * 1024)
+panel_token = env_value("TTSMODACHI_PANEL_TOKEN")
 public_hosts = {
     host.strip().lower()
-    for host in os.environ.get("TALKMODACHI_PUBLIC_HOSTS", "").split(",")
+    for host in (env_value("TTSMODACHI_PUBLIC_HOSTS", "") or "").split(",")
     if host.strip()
 }
 
@@ -265,7 +266,7 @@ def main() -> None:
 
     host = os.environ.get("RENDERER_HOST", "0.0.0.0")
     port = int(os.environ.get("RENDERER_PORT", "8080"))
-    uvicorn.run("talkmodachi_bot.renderer_service:app", host=host, port=port)
+    uvicorn.run("ttsmodachi_bot.renderer_service:app", host=host, port=port)
 
 
 if __name__ == "__main__":

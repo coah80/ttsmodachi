@@ -30,6 +30,16 @@ currentRom = None
 emulatorProcess = None
 structDef = "BBBBBBBBBiIiBB"
 
+def env_value(name, default=None):
+    value = os.environ.get(name)
+    if value:
+        return value
+    if name.startswith("TTSMODACHI_"):
+        legacy_value = os.environ.get("TALKMODACHI_" + name.removeprefix("TTSMODACHI_"))
+        if legacy_value:
+            return legacy_value
+    return default
+
 def getJobAddr():
     if currentRom == "JP":
         return audioRenderJobAddrJP
@@ -75,7 +85,7 @@ def calcFileLength(bytes):
 def waitForStatus(stat, timeout=15,setLanguage=None):
     current=-1
     start_time = time.time()
-    poll_interval = float(os.environ.get("TALKMODACHI_POLL_INTERVAL", "0.01"))
+    poll_interval = float(env_value("TTSMODACHI_POLL_INTERVAL", "0.01"))
     language_set = False
     while current != stat:
         if setLanguage is not None and not language_set:
@@ -96,7 +106,7 @@ def startEmulator(romname='US',setLanguage=None):
     global emulatorProcess
     global currentRom
     setRom(romname)
-    work_dir = os.environ.get("CITRA_WORK_DIR", f"/tmp/talkmodachi-{citra.CITRA_PORT}")
+    work_dir = os.environ.get("CITRA_WORK_DIR", f"/tmp/ttsmodachi-{citra.CITRA_PORT}")
     config_dir = os.path.join(work_dir, "user", "config")
     os.makedirs(config_dir, exist_ok=True)
     with open("/config/sdl2-config.ini", "rb") as f:

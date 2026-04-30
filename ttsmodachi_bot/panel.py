@@ -6,7 +6,7 @@ PANEL_HTML = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Talkmodachi Voice Panel</title>
+  <title>TTSModachi Voice Panel</title>
   <style>
     :root {
       color-scheme: dark;
@@ -278,7 +278,7 @@ PANEL_HTML = """<!doctype html>
 <body>
   <main>
     <header>
-      <h1>Talkmodachi Voice Panel</h1>
+      <h1>TTSModachi Voice Panel</h1>
       <div class="header-side">
         <div class="identity" id="identity" hidden>
           <img id="identityAvatar" alt="">
@@ -349,7 +349,7 @@ PANEL_HTML = """<!doctype html>
 
   <script>
     const state = {
-      token: new URLSearchParams(location.search).get("token") || sessionStorage.getItem("talkmodachiToken") || "",
+      token: new URLSearchParams(location.search).get("token") || sessionStorage.getItem("ttsmodachiToken") || sessionStorage.getItem("talkmodachiToken") || "",
       builtins: {},
       session: null,
       values: {
@@ -363,7 +363,7 @@ PANEL_HTML = """<!doctype html>
         volume: 165
       }
     };
-    if (state.token) sessionStorage.setItem("talkmodachiToken", state.token);
+    if (state.token) sessionStorage.setItem("ttsmodachiToken", state.token);
 
     const ranges = [
       ["pitch", "Pitch", 0, 100, 1],

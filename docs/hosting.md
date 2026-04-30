@@ -1,4 +1,4 @@
-# Talkmodachi
+# TTSModachi
 
 Getting the full setup for hosting this locally is quite tricky, but these instructions should get you going if you've done software dev and 3DS modding before.
 

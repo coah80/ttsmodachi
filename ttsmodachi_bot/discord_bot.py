@@ -16,6 +16,7 @@ from .panel_tokens import create_panel_token
 from .render_client import RendererClient
 from .storage import Storage
 from .voices import BUILTIN_VOICES, VoiceParams
+from .env import env_value
 
 
 LOGGER = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ def panel_url_for(
     display_name: str | None = None,
     avatar_url: str | None = None,
 ) -> str:
-    base_url = os.environ.get("TALKMODACHI_PANEL_URL", "https://tomo.coah80.com").rstrip("/")
+    base_url = (env_value("TTSMODACHI_PANEL_URL", "https://tomo.coah80.com") or "").rstrip("/")
     token = create_panel_token(
         guild_id=guild_id,
         user_id=user_id,
@@ -98,7 +99,7 @@ async def send_voice_panel(interaction: discord.Interaction) -> None:
 
 
 class GuildPlayer:
-    def __init__(self, bot: "TalkmodachiBot", guild_id: int) -> None:
+    def __init__(self, bot: "TTSModachiBot", guild_id: int) -> None:
         self.bot = bot
         self.guild_id = guild_id
         self.queue: asyncio.Queue[tuple[str, VoiceParams, discord.abc.Messageable | None]] = asyncio.Queue(maxsize=20)
@@ -172,7 +173,7 @@ class GuildPlayer:
         path.unlink(missing_ok=True)
 
 
-class TalkmodachiBot(discord.Client):
+class TTSModachiBot(discord.Client):
     def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.guilds = True
@@ -181,7 +182,7 @@ class TalkmodachiBot(discord.Client):
         intents.voice_states = True
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
-        self.storage = Storage(os.environ.get("DATABASE_PATH", "/data/talkmodachi.sqlite3"))
+        self.storage = Storage(os.environ.get("DATABASE_PATH", "/data/ttsmodachi.sqlite3"))
         self.renderer = RendererClient(os.environ.get("RENDERER_URL", "http://tts-worker:8080"))
         self.players: dict[int, GuildPlayer] = {}
         self.sync_commands = env_bool("SYNC_COMMANDS_ON_START", True)
@@ -269,13 +270,13 @@ class TalkmodachiBot(discord.Client):
             await message.add_reaction("⏳")
 
 
-def register_commands(bot: TalkmodachiBot) -> None:
-    @bot.tree.command(name="setup", description="Set the text channel Talkmodachi reads from.")
+def register_commands(bot: TTSModachiBot) -> None:
+    @bot.tree.command(name="setup", description="Set the text channel TTSModachi reads from.")
     @app_commands.checks.has_permissions(administrator=True)
     async def setup(interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         assert interaction.guild is not None
         bot.storage.set_guild_value(interaction.guild.id, "setup_channel_id", channel.id)
-        await interaction.response.send_message(f"Talkmodachi will read messages from {channel.mention}.", ephemeral=True)
+        await interaction.response.send_message(f"TTSModachi will read messages from {channel.mention}.", ephemeral=True)
 
     @bot.tree.command(name="join", description="Join your voice channel.")
     async def join(interaction: discord.Interaction) -> None:
@@ -299,7 +300,7 @@ def register_commands(bot: TalkmodachiBot) -> None:
         bot.player_for(interaction.guild.id).clear()
         await interaction.response.send_message("Cleared the queue.", ephemeral=True)
 
-    @bot.tree.command(name="settings", description="Show Talkmodachi settings for this server.")
+    @bot.tree.command(name="settings", description="Show TTSModachi settings for this server.")
     async def settings(interaction: discord.Interaction) -> None:
         assert interaction.guild is not None
         row = bot.storage.get_guild_settings(interaction.guild.id)
@@ -328,19 +329,19 @@ def register_commands(bot: TalkmodachiBot) -> None:
             ephemeral=True,
         )
 
-    set_group = app_commands.Group(name="set", description="Change Talkmodachi settings.")
+    set_group = app_commands.Group(name="set", description="Change TTSModachi settings.")
 
     async def set_bool(interaction: discord.Interaction, column: str, label: str, value: bool) -> None:
         assert interaction.guild is not None
         bot.storage.set_guild_value(interaction.guild.id, column, int(value))
         await interaction.response.send_message(f"{label} is now {format_bool(value)}.", ephemeral=True)
 
-    @set_group.command(name="channel", description="Set the text channel Talkmodachi reads from.")
+    @set_group.command(name="channel", description="Set the text channel TTSModachi reads from.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def set_channel(interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         assert interaction.guild is not None
         bot.storage.set_guild_value(interaction.guild.id, "setup_channel_id", channel.id)
-        await interaction.response.send_message(f"Talkmodachi will read messages from {channel.mention}.", ephemeral=True)
+        await interaction.response.send_message(f"TTSModachi will read messages from {channel.mention}.", ephemeral=True)
 
     @set_group.command(name="autojoin", description="Allow automatic voice join when someone sends TTS.")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -495,7 +496,7 @@ def register_commands(bot: TalkmodachiBot) -> None:
     async def voice(interaction: discord.Interaction) -> None:
         await send_voice_panel(interaction)
 
-    voice_group = app_commands.Group(name="voices", description="Manual Talkmodachi voice controls.")
+    voice_group = app_commands.Group(name="voices", description="Manual TTSModachi voice controls.")
 
     @voice_group.command(name="list", description="List available voices.")
     async def voice_list(interaction: discord.Interaction) -> None:
@@ -593,7 +594,7 @@ def main() -> None:
     if not token:
         raise SystemExit("DISCORD_TOKEN is required")
     load_opus()
-    bot = TalkmodachiBot()
+    bot = TTSModachiBot()
     bot.run(token)
 
 

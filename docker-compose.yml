@@ -2,7 +2,7 @@ services:
   tts-worker:
     build:
       context: .
-    command: python -m talkmodachi_bot.renderer_service
+    command: python -m ttsmodachi_bot.renderer_service
     restart: unless-stopped
     cpus: "2.0"
     env_file:
@@ -10,18 +10,7 @@ services:
     environment:
       RENDERER_HOST: 0.0.0.0
       RENDERER_PORT: 8080
-      DATABASE_PATH: /data/talkmodachi.sqlite3
-      TALKMODACHI_CACHE_DIR: /cache
-      TALKMODACHI_WORKER_ROMS: ${TALKMODACHI_WORKER_ROMS:-US}
-      TALKMODACHI_US_WORKERS: ${TALKMODACHI_US_WORKERS:-1}
-      TALKMODACHI_POLL_INTERVAL: ${TALKMODACHI_POLL_INTERVAL:-0.01}
-      TALKMODACHI_IDLE_SUSPEND_SECONDS: ${TALKMODACHI_IDLE_SUSPEND_SECONDS:-10}
-      TALKMODACHI_IDLE_RESUME_TIMEOUT_MS: ${TALKMODACHI_IDLE_RESUME_TIMEOUT_MS:-1000}
-      TALKMODACHI_MAX_INFLIGHT_RENDERS: ${TALKMODACHI_MAX_INFLIGHT_RENDERS:-32}
-      TALKMODACHI_CACHE_MAX_BYTES: ${TALKMODACHI_CACHE_MAX_BYTES:-1073741824}
-      TALKMODACHI_PANEL_TOKEN: ${TALKMODACHI_PANEL_TOKEN:-}
-      TALKMODACHI_PUBLIC_HOSTS: ${TALKMODACHI_PUBLIC_HOSTS:-}
-      TALKMODACHI_PANEL_SIGNING_KEY: ${TALKMODACHI_PANEL_SIGNING_KEY:-}
+      TTSMODACHI_CACHE_DIR: /cache
       CITRA_MAX_RUNTIME_SECONDS: "0"
       SDL_AUDIODRIVER: dummy
       SDL_VIDEODRIVER: dummy
@@ -41,16 +30,13 @@ services:
   bot:
     build:
       context: .
-    command: python -m talkmodachi_bot.discord_bot
+    command: python -m ttsmodachi_bot.discord_bot
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      DATABASE_PATH: /data/talkmodachi.sqlite3
       RENDERER_URL: http://tts-worker:8080
       SYNC_COMMANDS_ON_START: ${SYNC_COMMANDS_ON_START:-true}
-      TALKMODACHI_PANEL_URL: ${TALKMODACHI_PANEL_URL:-https://tomo.coah80.com}
-      TALKMODACHI_PANEL_SIGNING_KEY: ${TALKMODACHI_PANEL_SIGNING_KEY:-}
     volumes:
       - bot-data:/data
     depends_on:

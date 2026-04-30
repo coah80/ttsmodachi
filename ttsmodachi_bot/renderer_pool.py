@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .env import env_float, env_int, env_setdefault, env_value
 from .voices import VoiceParams
 
 
@@ -46,9 +47,9 @@ def find_free_udp_port() -> int:
 
 def _worker_loop(spec: WorkerSpec, inbox: mp.Queue, outbox: mp.Queue) -> None:
     os.environ.setdefault("CITRA_MAX_RUNTIME_SECONDS", "0")
-    os.environ.setdefault("TALKMODACHI_POLL_INTERVAL", "0.01")
-    idle_suspend_seconds = float(os.environ.get("TALKMODACHI_IDLE_SUSPEND_SECONDS", "10"))
-    idle_resume_timeout = float(os.environ.get("TALKMODACHI_IDLE_RESUME_TIMEOUT_MS", "1000")) / 1000
+    env_setdefault("TTSMODACHI_POLL_INTERVAL", "0.01")
+    idle_suspend_seconds = env_float("TTSMODACHI_IDLE_SUSPEND_SECONDS", 10)
+    idle_resume_timeout = env_float("TTSMODACHI_IDLE_RESUME_TIMEOUT_MS", 1000) / 1000
     sys.path.insert(0, str(API_DIR))
 
     import citra  # type: ignore
@@ -89,7 +90,7 @@ def _worker_loop(spec: WorkerSpec, inbox: mp.Queue, outbox: mp.Queue) -> None:
         outbox.put(state_payload(event))
 
     def log_event(message: str) -> None:
-        print(f"[talkmodachi-worker:{spec.name}] {message}", flush=True)
+        print(f"[ttsmodachi-worker:{spec.name}] {message}", flush=True)
 
     def start_emulator() -> None:
         nonlocal paused, last_activity_at, last_error
@@ -426,12 +427,12 @@ class RendererPool:
 
     @classmethod
     def from_env(cls) -> "RendererPool":
-        render_timeout = float(os.environ.get("TALKMODACHI_RENDER_TIMEOUT", "20"))
+        render_timeout = env_float("TTSMODACHI_RENDER_TIMEOUT", 20)
         specs: list[WorkerSpec] = []
-        worker_roms = [rom.strip().upper() for rom in os.environ.get("TALKMODACHI_WORKER_ROMS", "US").split(",") if rom.strip()]
+        worker_roms = [rom.strip().upper() for rom in (env_value("TTSMODACHI_WORKER_ROMS", "US") or "").split(",") if rom.strip()]
         for rom in worker_roms:
-            count = int(os.environ.get(f"TALKMODACHI_{rom}_WORKERS", "1"))
-            lang_id = int(os.environ.get(f"TALKMODACHI_{rom}_LANG_ID", "1"))
+            count = env_int(f"TTSMODACHI_{rom}_WORKERS", 1)
+            lang_id = env_int(f"TTSMODACHI_{rom}_LANG_ID", 1)
             for index in range(count):
                 specs.append(WorkerSpec(rom=rom, lang_id=lang_id, port=find_free_udp_port(), name=f"{rom}-{index + 1}"))
         return cls(specs, render_timeout=render_timeout)
