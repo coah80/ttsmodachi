@@ -25,13 +25,14 @@ Do not commit NSP/NCA/key material. The repo ignores Switch package formats, key
 - Ryubing source: `93f23cd`
 - Local build: `dotnet build -c Release -o build`
 - Boot command: headless Ryubing with isolated `ltd-work/ryubing-data`
-- Result: NSP loads, process starts, Vulkan initializes, audio renderer starts.
-- Current blocker: `FontStandard (100000000000811) system title not found`; install/provide Switch firmware system archives before the next LTD memory-bridge pass.
+- Firmware installed locally into isolated Ryubing data dir from `Firmware 21.1.0.zip`
+- Result: NSP loads as `Tomodachi Life: Living the Dream v1.0.0`, Vulkan initializes, audio renderer starts, and the title reaches the Switch software keyboard applet.
+- Current blocker: advance the title past first-run/user-input flow in headless mode, then attach the memory bridge around the TTS-loading path.
 
 ## Next reverse-engineering pass
 
 1. Extract PFS0 metadata locally into `ltd-work/metadata`.
 2. Use the base program NCA `2e88713715d1d950ece6ce679a2fd456.nca`; it contains `main`, `sdk`, `rtld`, and `main.npdm` in ExeFS.
 3. Start from the current string anchors found in `main`: `VoiceSynthesis`, `END of LOADTTS`, `VoiceText/us`, `engttsdict_emb`, `/tts_single_db(D32-GLORIA).vtdb2`, `/tts_single_db(D32-CHLOE).vtdb2`, and the `pcm/` database paths.
-4. Install firmware system archives into the isolated Ryubing data dir, then confirm the title reaches the menu or TTS-loading path.
+4. Implement or drive headless input/software-keyboard responses so the title can reach the menu/TTS-loading flow without manual UI.
 5. Add a memory bridge that matches the renderer service contract: input text + voice params in, WAV/PCM bytes out.
