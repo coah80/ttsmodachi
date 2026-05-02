@@ -12,6 +12,7 @@ cache
 *.keys
 ltd-work/
 ryubing-work/
+ltd/
 *.exe
 gamePatch/source/main.hks
 newcodeinfo.h

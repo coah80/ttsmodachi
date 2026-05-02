@@ -1,0 +1,30 @@
+services:
+  tts-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.ltd
+    environment:
+      DOTNET_ROOT: /usr/share/dotnet
+      TTSMODACHI_WORKER_ROMS: LTD
+      TTSMODACHI_LTD_ENABLED: "true"
+      TTSMODACHI_LTD_WARM: "true"
+      TTSMODACHI_LTD_APPLIANCE: "true"
+      TTSMODACHI_LTD_GAME_PATH: /ltd/game/Tomodachi Life Living the Dream.nsp
+      TTSMODACHI_LTD_RYUBING_PATH: /opt/ryubing
+      TTSMODACHI_LTD_DATA_DIR: /ltd/data
+      TTSMODACHI_LTD_SEED_DATA_DIR: /ltd/seed
+      TTSMODACHI_LTD_WORK_DIR: /ltd/work
+      TTSMODACHI_LTD_DOTNET_ROOT: /usr/share/dotnet
+      TTSMODACHI_LTD_PREWARM: "true"
+      TTSMODACHI_LTD_PREWARM_PRIMER: "true"
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ./ltd/game:/ltd/game:ro
+      - ./ltd/seed:/ltd/seed:ro
+      - ltd-data:/ltd/data
+      - ltd-work:/ltd/work
+
+volumes:
+  ltd-data:
+  ltd-work:

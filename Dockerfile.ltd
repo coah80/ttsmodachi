@@ -1,0 +1,59 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS ryubing-builder
+
+ARG RYUBING_REPO=https://git.ryujinx.app/ryubing/ryujinx.git
+ARG RYUBING_COMMIT=93f23cde4f090320ec11f8e730b30de35859c2ed
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    clang \
+    git \
+    make \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY docs/ryubing-ttsmodachi.patch /tmp/ryubing-ttsmodachi.patch
+RUN git clone --recursive "${RYUBING_REPO}" ryubing \
+    && cd ryubing \
+    && git checkout "${RYUBING_COMMIT}" \
+    && git submodule update --init --recursive \
+    && git apply /tmp/ryubing-ttsmodachi.patch \
+    && dotnet build -c Release -o /opt/ryubing/build
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV DOTNET_ROOT=/usr/share/dotnet
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    ffmpeg \
+    libasound2t64 \
+    libgl1 \
+    libvulkan1 \
+    libx11-6 \
+    libxcursor1 \
+    libxext6 \
+    libxi6 \
+    libxinerama1 \
+    libxrandr2 \
+    mesa-vulkan-drivers \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+RUN python3 -m pip install --no-cache-dir --break-system-packages -r /app/requirements.txt
+
+COPY api /app/api
+COPY ttsmodachi_bot /app/ttsmodachi_bot
+COPY --from=ryubing-builder /opt/ryubing /opt/ryubing
+
+RUN mkdir -p /cache /data /ltd/data /ltd/seed /ltd/work /ltd/game
+
+CMD ["python3", "-m", "ttsmodachi_bot.renderer_service"]

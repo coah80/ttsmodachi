@@ -36,6 +36,12 @@ The panel includes sliders for `pitch`, `speed`, `quality`, `tone`, `accent`, `i
 
 Set `TTSMODACHI_WORKER_ROMS=LTD`, `TTSMODACHI_LTD_ENABLED=true`, `TTSMODACHI_LTD_GAME_PATH`, and `TTSMODACHI_LTD_RYUBING_PATH` to test it through `/render` or the voice panel engine selector. For fresh worker data dirs, set `TTSMODACHI_LTD_SEED_DATA_DIR` to a private prepared Ryubing root-data-dir with firmware, profiles, and a minimal LTD save/Mii context; the worker copies it before booting. Voice sliders are persisted with the engine choice; LTD pitch/speed/tone currently use a fast post-render transform while native in-game parameter mapping remains future work.
 
+For isolated LTD staging, put private assets under `ltd/game` and `ltd/seed`, then run:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.ltd.yml up -d --build tts-worker
+```
+
 ## Commands
 
 - `/setup #channel` sets the text channel to read from.
