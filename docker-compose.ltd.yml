@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.ltd
+    command: python3 -m ttsmodachi_bot.renderer_service
     environment:
       DOTNET_ROOT: /usr/share/dotnet
       TTSMODACHI_WORKER_ROMS: LTD
@@ -17,6 +18,12 @@ services:
       TTSMODACHI_LTD_DOTNET_ROOT: /usr/share/dotnet
       TTSMODACHI_LTD_PREWARM: "true"
       TTSMODACHI_LTD_PREWARM_PRIMER: "true"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     devices:
       - /dev/dri:/dev/dri
     volumes:
