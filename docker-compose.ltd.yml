@@ -4,12 +4,17 @@ services:
       context: .
       dockerfile: Dockerfile.ltd
     command: python3 -m ttsmodachi_bot.renderer_service
+    cpus: "6.0"
     environment:
       DOTNET_ROOT: /usr/share/dotnet
+      SDL_VIDEODRIVER: offscreen
       TTSMODACHI_WORKER_ROMS: LTD
       TTSMODACHI_LTD_ENABLED: "true"
       TTSMODACHI_LTD_WARM: "true"
       TTSMODACHI_LTD_APPLIANCE: "true"
+      TTSMODACHI_LTD_TIMEOUT_SECONDS: "300"
+      TTSMODACHI_LTD_MEMORY_MANAGER_MODE: SoftwarePageTable
+      TTSMODACHI_LTD_DISABLE_PTC: "true"
       TTSMODACHI_LTD_GAME_PATH: /ltd/game/ltd.nsp
       TTSMODACHI_LTD_RYUBING_PATH: /ryubing
       TTSMODACHI_LTD_DATA_DIR: /ltd/data
