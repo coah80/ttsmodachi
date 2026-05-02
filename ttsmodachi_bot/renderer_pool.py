@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .env import env_float, env_int, env_setdefault, env_value
+from .ltd_switch import LtdRenderRequest, LtdSwitchWorker
 from .voices import VoiceParams
 
 
@@ -450,8 +451,9 @@ class WorkerLane:
 
 
 class RendererPool:
-    def __init__(self, specs: list[WorkerSpec], render_timeout: float = 20.0) -> None:
+    def __init__(self, specs: list[WorkerSpec], render_timeout: float = 20.0, ltd_worker: LtdSwitchWorker | None = None) -> None:
         self.render_timeout = render_timeout
+        self.ltd_worker = ltd_worker
         self.lanes_by_rom: dict[str, list[WorkerLane]] = {}
         self.next_index: dict[str, int] = {}
         for spec in specs:
@@ -464,21 +466,45 @@ class RendererPool:
         specs: list[WorkerSpec] = []
         worker_roms = [rom.strip().upper() for rom in (env_value("TTSMODACHI_WORKER_ROMS", "US") or "").split(",") if rom.strip()]
         for rom in worker_roms:
+            if rom == "LTD":
+                continue
             count = env_int(f"TTSMODACHI_{rom}_WORKERS", 1)
             lang_id = env_int(f"TTSMODACHI_{rom}_LANG_ID", 1)
             for index in range(count):
                 specs.append(WorkerSpec(rom=rom, lang_id=lang_id, port=find_free_udp_port(), name=f"{rom}-{index + 1}"))
-        return cls(specs, render_timeout=render_timeout)
+        ltd_worker = None
+        if "LTD" in worker_roms or (env_value("TTSMODACHI_LTD_ENABLED", "") or "").lower() in {"1", "true", "yes"}:
+            game_path = Path(env_value("TTSMODACHI_LTD_GAME_PATH", "") or "")
+            ryubing_path = Path(env_value("TTSMODACHI_LTD_RYUBING_PATH", "ryubing-work/ryubing") or "ryubing-work/ryubing")
+            ltd_worker = LtdSwitchWorker(
+                ryubing_path=ryubing_path,
+                game_path=game_path,
+                data_dir=Path(env_value("TTSMODACHI_LTD_DATA_DIR", "ltd-work/ryubing-data") or "ltd-work/ryubing-data"),
+                work_dir=Path(env_value("TTSMODACHI_LTD_WORK_DIR", "ltd-work/ltd-renderer") or "ltd-work/ltd-renderer"),
+                dotnet_root=env_value("TTSMODACHI_LTD_DOTNET_ROOT", os.environ.get("DOTNET_ROOT", "")),
+                timeout_seconds=env_float("TTSMODACHI_LTD_TIMEOUT_SECONDS", 150),
+            )
+        return cls(specs, render_timeout=render_timeout, ltd_worker=ltd_worker)
 
     def start(self) -> None:
         for lane in self._lanes():
             lane.start()
+        if self.ltd_worker is not None:
+            self.ltd_worker.start()
 
     def stop(self) -> None:
         for lane in self._lanes():
             lane.stop()
+        if self.ltd_worker is not None:
+            self.ltd_worker.stop()
 
     def render(self, payload: RenderPayload) -> dict[str, Any]:
+        if payload.voice.rom() == "LTD":
+            if self.ltd_worker is None:
+                raise RuntimeError("No LTD Switch renderer configured")
+            started = time.perf_counter()
+            audio = self.ltd_worker.render(LtdRenderRequest(text=payload.text, voice=payload.voice, mode=payload.mode))
+            return {"type": "result", "audio": audio, "elapsed_ms": round((time.perf_counter() - started) * 1000, 2)}
         lanes = self.lanes_by_rom.get(payload.voice.rom())
         if not lanes:
             raise RuntimeError(f"No renderer worker configured for ROM {payload.voice.rom()}")
@@ -512,7 +538,8 @@ class RendererPool:
                     "last_error": lane.last_error,
                 }
                 for lane in self._lanes()
-            ]
+            ],
+            "ltd_switch": self.ltd_worker.health() if self.ltd_worker else None,
         }
 
     def _lanes(self) -> list[WorkerLane]:

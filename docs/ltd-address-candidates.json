@@ -1,0 +1,1038 @@
+{
+  "title_id": "010051f0207b2000",
+  "version": 0,
+  "main_build_id": "56BF85BD535413464CB75BB6C2683B6711E0BC0B000000000000000000000000",
+  "main_guest_base": "0x8506000",
+  "sdk_guest_base": "0xd79f000",
+  "audio_buffers": [
+    {
+      "name": "final_audio_ring_first_preview",
+      "ranges": [
+        "0x65F76E7000-0x65F76E8000"
+      ],
+      "sample_rate": 32000,
+      "format": "PcmInt16",
+      "status": "confirmed_final_buffer"
+    },
+    {
+      "name": "final_audio_ring_later_preview",
+      "ranges": [
+        "0x65F770F000-0x65F7710000"
+      ],
+      "sample_rate": 32000,
+      "format": "PcmInt16",
+      "status": "confirmed_final_buffer"
+    },
+    {
+      "name": "immediate_pcm_source_ring",
+      "ranges": [
+        "0x65F795B000-0x65F7B00000"
+      ],
+      "status": "confirmed_source_for_final_audio_ring"
+    },
+    {
+      "name": "upstream_pcm_queue_or_heap",
+      "ranges": [
+        "0x65F9F97000-0x65FA300000"
+      ],
+      "status": "too_broad_allocator_and_queue_setup"
+    }
+  ],
+  "functions": [
+    {
+      "name": "sdk_memcpy",
+      "absolute": "0xDD4FF00",
+      "module": "sdk",
+      "relative": "0x5B0F00",
+      "status": "confirmed_copy_helper"
+    },
+    {
+      "name": "copy_source_to_final_audio_ring",
+      "absolute": "0x896B598",
+      "module": "main",
+      "relative": "0x465598",
+      "nso_va": "0x8465598",
+      "direct_callers": [
+        "0x8465430"
+      ],
+      "indirect_parent_chain": [
+        "0x82ADA74",
+        "0x8465380",
+        "0x8465430"
+      ],
+      "return_sites": [
+        "0x896B714"
+      ],
+      "status": "confirmed_consumer_copy"
+    },
+    {
+      "name": "audio_queue_consumer_step",
+      "absolute": "0x87B398C",
+      "module": "main",
+      "relative": "0x2AD98C",
+      "nso_va": "0x82AD98C",
+      "direct_callers": [
+        "0x82ACA60",
+        "0x82ACB04",
+        "0x82ACB80",
+        "0x82ACD6C",
+        "0x852D454"
+      ],
+      "indirect_call_site": "0x82ADA74",
+      "indirect_return_site": "0x82ADA78",
+      "resolved_target": "0x8465380",
+      "replay_test": {
+        "capture_addrs": "0x2ad98c",
+        "kick_addr": "0x2ad98c",
+        "prewarm_seconds": 15.268,
+        "render_seconds": [
+          2.49,
+          1.7
+        ],
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": [
+          1.857,
+          2.5
+        ],
+        "sha256": [
+          "5cb85b72146cde2c696064c05481581464877a3bd9928e48e61f208681e82246",
+          "87f393e18fd21cad5929804ec9c0270de27a8e3802425cc9671ef7fadf1ad28d"
+        ]
+      },
+      "fast_replay_test": {
+        "capture_addrs": "0x2ad98c",
+        "kick_addr": "0x2ad98c",
+        "kick_max": 64,
+        "kick_interval_ms": 0,
+        "prewarm_seconds": 13.571,
+        "render_seconds": [
+          1.257,
+          0.167,
+          2.351
+        ],
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": [
+          1.571,
+          1.571,
+          3.071
+        ],
+        "sha256": [
+          "5e855d5632583da6ad2c4e19e6e21431b8c76965c2f7364581710e484aa9fb94",
+          "bf22d675b85ce1f0efc0e19288a2c3a23f7892dc5f0c34de6d7313598103d06f",
+          "7c61e80b7c5ed92f0e7e8a8cfdf6d0ab8feed1ab6547c2785831c3d8569b2494"
+        ],
+        "trace_text_hashes": [
+          "df3d4e10cf8f2d90",
+          "03084fef507188ab",
+          "05c6e08f1d9fdafa"
+        ],
+        "status": "experimental_fast_profile_unstable_under_burst"
+      },
+      "default_fast_profile_test": {
+        "prewarm_seconds": 14.931,
+        "render_seconds": [
+          1.261,
+          0.17,
+          1.103
+        ],
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": [
+          1.714,
+          1.714,
+          3.071
+        ],
+        "sha256": [
+          "20c99575e7b52b9030acadc3d6570a6645cfadbc38cec9f2094dcee436144fce",
+          "aee13d0fd01c1fe123d3f43a27241e124f5e387dca5b2e18eda94e292c0adb1f",
+          "e428494d91cf0d519fafab346ca938b06930b7edf9b9fbb260ad29491e9f00ad"
+        ],
+        "trace_text_hashes": [
+          "8b723534abdc763d",
+          "30c4f7cef143fcc0",
+          "05c6e08f1d9fdafa"
+        ]
+      },
+      "post_request_dump_hook_default_test": {
+        "prewarm_seconds": 14.853,
+        "render_seconds": [
+          1.252,
+          2.022
+        ],
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": [
+          3.071,
+          3.071
+        ],
+        "sha256": [
+          "d4d8191cd9d95c4fd5213691190909047c5cae7f34f3250baac1d0954f036fae",
+          "f7fba061ab3feadfd210110fae94c8b78e330d3e5df2b26ca2d0ecdae8b83723"
+        ]
+      },
+      "post_context_experiments_default_test": {
+        "prewarm_seconds": 14.275,
+        "render_seconds": [
+          1.249,
+          0.175
+        ],
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": [
+          2.785719,
+          3.071438
+        ],
+        "sha256": [
+          "2ccfb6198bf04094fc8b15466bed0cfef5fb571d9d15ff74a2af079fbf139d0a",
+          "9ecdceade214b735f4a894f61601b3e537039d05a3ab8bb7cc41770774f34c45"
+        ],
+        "trace_text_hashes": [
+          "20fdc61865db7c77",
+          "05c6e08f1d9fdafa"
+        ],
+        "status": "clean_default_replay_flags_off"
+      },
+      "post_sp_capture_default_test": {
+        "prewarm_seconds": 14.674,
+        "render_seconds": [
+          1.245,
+          0.938
+        ],
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": [
+          2.142875,
+          3.071438
+        ],
+        "sha256": [
+          "4da130b9d171aba034d38a2f5e8811926933222efadb0e92709e66dd863a17fc",
+          "e44eb278f58a63aca729ffa8146a7ee75757a62fe387fc074d03d9befe18cd6d"
+        ],
+        "trace_text_hashes": [
+          "cc938f557e81744d",
+          "05c6e08f1d9fdafa"
+        ],
+        "status": "clean_default_sp_captured_replay_flags_off"
+      },
+      "post_context_trace_hook_default_test": {
+        "prewarm_seconds": 14.205,
+        "render_seconds": [
+          3.575,
+          0.176
+        ],
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": [
+          2.714313,
+          3.071438
+        ],
+        "sha256": [
+          "b83e2d8a0048df8fc06ce3eae71f77f53d60acf6d4cbff91e7053b1719da11db",
+          "95302dff2d5cfd54a9166934bc1d791e066122d8fd5004b6b7a1bd572a307d7f"
+        ],
+        "trace_text_hashes": [
+          "aaffec989d615851",
+          "05c6e08f1d9fdafa"
+        ],
+        "status": "clean_default_context_trace_hooks_off"
+      },
+      "post_consumer_frame_hook_default_test": {
+        "prewarm_seconds": 13.413,
+        "render_seconds": [
+          1.237,
+          1.726
+        ],
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": [
+          2.785719,
+          3.071438
+        ],
+        "sha256": [
+          "2ccfb6198bf04094fc8b15466bed0cfef5fb571d9d15ff74a2af079fbf139d0a",
+          "ec8ba127be9a060e72e18b84495f79875d11921dbca86307ae76ea995bcc9873"
+        ],
+        "trace_text_hashes": [
+          "9e66b3df4bf55a63",
+          "05c6e08f1d9fdafa"
+        ],
+        "status": "clean_default_consumer_frame_hooks_off"
+      },
+      "register_trace_example": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_TRACE_CONSUMER_REGISTERS=true",
+        "render_seconds": 2.51,
+        "sample_rate": 32000,
+        "duration_seconds": 2.071,
+        "sha256": "83a71a96247e2e1e969802eb539a9836f6b266975cf541f59485826a9f29091a",
+        "common_x0": [
+          "0x65f7698a50",
+          "0x65f7698810",
+          "0x65f7698c90",
+          "0x65f7698ed0"
+        ],
+        "common_x19": [
+          "0x65f7690528",
+          "0x65f7690648",
+          "0x65f7690768",
+          "0x65f7690888"
+        ],
+        "common_x30": [
+          "0x8a33458",
+          "0x87b2a64",
+          "0x8509004"
+        ]
+      },
+      "object_dump_example": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_CONSUMER_DUMP_DIR",
+        "dump_registers": [
+          "x0",
+          "x19",
+          "x21",
+          "x22"
+        ],
+        "dump_bytes": 256,
+        "dump_count": 196,
+        "render_seconds": 2.493,
+        "sample_rate": 32000,
+        "duration_seconds": 1.857,
+        "sha256": "78d9645475ad41d03d9837c090dd65a1cea48033667162e685c03b631200642d"
+      },
+      "deep_object_dump_example": {
+        "dump_registers": [
+          "x19",
+          "x22"
+        ],
+        "dump_bytes": 1024,
+        "dump_count": 70,
+        "render_seconds": 2.499,
+        "sample_rate": 32000,
+        "duration_seconds": 1.571,
+        "sha256": "67326b32ed5282ca9d36194a800abc74cd105cc1f205ac4cb783710aafacf216",
+        "x19_pointer_offsets": {
+          "0x38": "0x65f764ce20",
+          "0xe0": "0x65f7699058",
+          "0xe8": "0x65f7698e18",
+          "0xf8": "0x65f76a7ca0",
+          "0x108": "0x65f7238848",
+          "0x200": "0x65f7690968",
+          "0x208": "0x65f7690968",
+          "0x320": "0x65f7690a88",
+          "0x328": "0x65f7690a88"
+        },
+        "x22_pointer_offsets": {
+          "0x0": "0x65f7698998",
+          "0x8": "0x65f7698998",
+          "0x18": "0x65f76a7ca0",
+          "0x28": "0x65f53046c8",
+          "0x120": "0x65f7699058",
+          "0x128": "0x65f7698e18",
+          "0x240": "0x65f7699058",
+          "0x248": "0x65f7698e18",
+          "0x360": "0x65f7690968",
+          "0x368": "0x65f7690968"
+        }
+      },
+      "persistent_consumer_frame_experiment": {
+        "frame_file": "TTSMODACHI_LTD_APPLIANCE_CONSUMER_FRAME_FILE",
+        "capture_proof": {
+          "prewarm_seconds": 14.984,
+          "render_seconds": 2.647,
+          "sample_rate": 32000,
+          "channels": 1,
+          "duration_seconds": 2.0,
+          "sha256": "80c6bad69162a91f2b159bd87b3f4b7e282717bcdf347f5b516612eaa2da83bf",
+          "saved_registers": {
+            "x0": "0x65f7698a50",
+            "x19": "0x65f7690528",
+            "x21": "0x65f7690108",
+            "x23": "0x65f7690110",
+            "x27": "0x65f7690608"
+          }
+        },
+        "startup_replay_without_after_dispatch": {
+          "render_seconds": 17.628,
+          "sample_rate": 32000,
+          "channels": 1,
+          "duration_seconds": 2.785719,
+          "sha256": "3472386d70eaf51a2d3ae40c05ae11cc0f692fabe9a4d40e78d8932006c42606",
+          "verdict": "loaded frame did not kick until the title naturally reached the later poll trampoline"
+        },
+        "startup_replay_after_dispatch": {
+          "consumer_kick_after_dispatch_max": 8,
+          "render_seconds": 18.562,
+          "sample_rate": 32000,
+          "channels": 1,
+          "duration_seconds": 2.5,
+          "sha256": "e52057caf7f6c5f16bc2d95eb2c9af74e1fb61f16cc38dd5fcd9a0153cfeef8e",
+          "trace": [
+            "dispatch at early capture",
+            "kick-after-dispatch about 2ms later",
+            "first PCM still waited for later audio runtime state"
+          ]
+        },
+        "early_vs_pre_pcm_dump": {
+          "consumer_kick_after_dispatch_max": 4,
+          "render_seconds": 17.002,
+          "sample_rate": 32000,
+          "channels": 1,
+          "duration_seconds": 2.285719,
+          "sha256": "52e6a0e41b7b25b1b858ef6da14609d5537c36ba70d24dcbbe638acbd7a328dc",
+          "first_pcm_after_consumer_captures": 67,
+          "important_field_changes": {
+            "x19+0x10": "0x0 -> 0x4000",
+            "x19+0x20": "0x0 -> 0x4000",
+            "x19+0x38": "0x0 -> 0x65f764cdc0",
+            "x19+0xe0": "0x65f7690608 -> 0x65f7698bd8",
+            "x19+0xe8": "0x65f7690608 -> 0x65f7698998",
+            "x0+0x10": "0x0 -> 0x65f7698830",
+            "x0+0x70": "0x0 -> 0x65f88db2f0"
+          },
+          "verdict": "saved call frame alone is insufficient; audio queue and ring-buffer state must also be initialized"
+        },
+        "status": "rules_out_frame_only_bootstrap"
+      },
+      "status": "confirmed_indirect_parent_of_final_consumer",
+      "audio_ring_constructor_candidates": {
+        "parent_guard": {
+          "module": "main",
+          "relative": "0x651D24",
+          "nso_va": "0x8651D24",
+          "guest": "0x8B57D24",
+          "direct_caller": "0x8650BC0",
+          "return_site": "0x8B56BC4",
+          "notes": "guards initialized flag at +0x8 before the parent audio queue/ring setup"
+        },
+        "parent_setup": {
+          "module": "main",
+          "relative": "0x651D34",
+          "nso_va": "0x8651D34",
+          "guest": "0x8B57D34",
+          "notes": "allocates/zeros ring backing storage, sets queue pointers, and calls SDK helper paths from the main+0x651D90 region"
+        },
+        "lane_constructor": {
+          "module": "main",
+          "relative": "0x651EE8",
+          "nso_va": "0x8651EE8",
+          "guest": "0x8B57EE8",
+          "direct_caller": "0x8651EBC",
+          "notes": "initializes each 0x120-byte lane object; writes the x19-family offsets later observed by the consumer dump"
+        },
+        "context_trace_experiment": {
+          "enabled_by": "TTSMODACHI_LTD_APPLIANCE_CONTEXT_TRACE_ADDRS=0x651d24,0x651d34,0x651e34,0x651ee8,0x6520c8",
+          "prewarm_seconds": 13.848,
+          "render_seconds": 1.275,
+          "sample_rate": 32000,
+          "channels": 1,
+          "duration_seconds": 2.2143125,
+          "sha256": "3f8e4edf22e783929f627c57d19a04d7ac9cc444898185f6880e889e83ae1e6a",
+          "parent_guard_registers": {
+            "x0": "0x65f7690018",
+            "x1": "0x65f4bbd598",
+            "x2": "0x65f74066b0",
+            "x3": "0x60",
+            "x19": "0x65f7406600",
+            "x20": "0x49d3f8f188",
+            "x21": "0x65f7406668",
+            "x22": "0x65f74066b0",
+            "x24": "0x65f7690018",
+            "x30": "0x8b56bc4"
+          },
+          "lane_constructor_registers": {
+            "x0": "0x65f7690528",
+            "x1": "0x6c08",
+            "x2": "0x20",
+            "x3": "0x86ec8c0",
+            "x19": "0x65f7690028",
+            "x20": "0x65f7690528",
+            "x21": "0x65f7690528",
+            "x22": "0x6c00",
+            "x24": "0x65f7690018",
+            "x30": "0x8b57ec0"
+          },
+          "verdict": "constructor frames are stable and trace-safe, but the parent caller allocates and wires a broader audio object graph before/after the ring constructor"
+        },
+        "write_trace_sources": {
+          "main+0x651F34": "x19+0x38 initial pointer field",
+          "main+0x651F3C": "x19+0x10 initial size/state field",
+          "main+0x651F40": "x19+0x20 initial size/state field",
+          "main+0x652000": "x19+0xE0/+0xE8 lane links",
+          "main+0x6520A0": "x19+0xE0/+0xE8 lane relink",
+          "main+0x6520C0": "x19+0x10 reset path",
+          "main+0x6520C4": "x19+0x20 reset path",
+          "sdk+0x581BBA0": "bulk object/buffer writes called with LR main+0x651D90"
+        },
+        "status": "best_current_target_for_no_title_audio_queue_bootstrap"
+      },
+      "memory_patch_experiment": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_MEMORY_PATCH_FILE",
+        "patch_count": 158,
+        "source": "captured pre-PCM x0/x19/x21/x23/x27 object snapshots",
+        "cold_no_prewarm_wall_seconds": 19.15,
+        "dispatch_to_patch_seconds": 0.033,
+        "dispatch_to_first_consumer_seconds": 0.035,
+        "dispatch_to_first_pcm_seconds": 11.865,
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": 2.21428125,
+        "sha256": "14f91e0cb17f6e5f5d39415c26908f564fdd53618d86f26f0986bac890727c44",
+        "verdict": "snapshot bytes plus saved consumer frame still do not bypass title/audio runtime scheduling state"
+      },
+      "static_disassembly_notes": [
+        "main+0x651D24/0x651D34/0x651EE8 are the ring/consumer constructors; main+0x650BC0 directly calls the parent guard after allocating the target object and before wiring later audio callbacks.",
+        "The parent caller continues through SDK allocator/helper calls and vtable dispatch after the constructor, so a no-title bootstrap needs the surrounding object graph and scheduler, not only the 0x651D24 call."
+      ]
+    },
+    {
+      "name": "final_audio_ring_consumer_vtable_target",
+      "absolute": "0x896B380",
+      "module": "main",
+      "relative": "0x465380",
+      "nso_va": "0x8465380",
+      "indirect_callers": [
+        "0x82ADA74"
+      ],
+      "direct_child_call_site": "0x8465430",
+      "replay_test": {
+        "capture_addrs": "0x465380",
+        "kick_addr": "0x465380",
+        "prewarm_seconds": 15.127,
+        "render_seconds": 1.577,
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": 1.857,
+        "repeat_render_seconds": [
+          1.4,
+          1.726
+        ],
+        "repeat_sha256": [
+          "120e6130b8e307eafacb1691f2171c7ece93b8fb18d6b1ff316c6f7716cb3adb",
+          "3364739aa3152a151af1ece7c5c8fd60050e7520ec8b277c25c3eac4e5360da8"
+        ]
+      },
+      "status": "confirmed_vtable_target_for_final_consumer"
+    },
+    {
+      "name": "copy_source_to_final_audio_ring_short",
+      "absolute": "0x896B91C",
+      "module": "main",
+      "relative": "0x46591C",
+      "nso_va": "0x846591C",
+      "return_sites": [
+        "0x896B9D8"
+      ],
+      "status": "confirmed_consumer_copy"
+    },
+    {
+      "name": "copy_upstream_to_source_ring",
+      "absolute": "0x8945704",
+      "module": "main",
+      "relative": "0x43F704",
+      "nso_va": "0x843F704",
+      "direct_callers": [
+        "0x843E674",
+        "0x87865F4"
+      ],
+      "return_sites": [
+        "0x89457B0",
+        "0x89457F0"
+      ],
+      "status": "confirmed_intermediate_copy"
+    },
+    {
+      "name": "source_ring_clear_or_setup",
+      "absolute": "0x8C8C600",
+      "module": "main",
+      "relative": "0x786600",
+      "return_sites": [
+        "0x8C8C68C",
+        "0x8C8C734"
+      ],
+      "status": "confirmed_clear_setup"
+    },
+    {
+      "name": "voice_text_request_entry_midblock",
+      "absolute": "0x894A5CC",
+      "module": "main",
+      "relative": "0x4445CC",
+      "nso_va": "0x84445CC",
+      "direct_callers": [
+        "0x843E9F4",
+        "0x84433EC"
+      ],
+      "prologue": "0x894A550",
+      "notes": [
+        "Production appliance jumps here from a saved guest context, not as a clean ABI call.",
+        "The midblock expects live x21/x22/object-table state from the natural request path; x0 alone is insufficient."
+      ],
+      "prologue_experiment": {
+        "request_addr": "0x444550",
+        "prewarm_seconds": 14.316,
+        "status": "failed_no_pcm",
+        "trace": "dispatch ok at 0x8509004, no appliance.pcm emitted before timeout"
+      },
+      "request_register_default_trace": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_TRACE_REQUEST_REGISTERS=true",
+        "prewarm_seconds": 14.054,
+        "render_seconds": 2.965,
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": 2.142875,
+        "sha256": "4d3ed17e6440309b0c5556309f9f68f826681267eff3fdcd6ac9a717fba0b60a",
+        "registers": {
+          "x0": "0x65f9dbd9d8",
+          "x1": "0x49c7fe1cd0",
+          "x2": "0x9d67c9c",
+          "x3": "0x65d8013b40",
+          "x19": "0x65cb09ee10",
+          "x20": "0x49c7fe1cd0",
+          "x21": "0x65cb09ca20",
+          "x22": "0x80000025",
+          "x23": "0x9cbaa20",
+          "x24": "0x0",
+          "x25": "0xa82cc0c",
+          "x29": "0x49c7fe10c0",
+          "x30": "0x8509004"
+        },
+        "status": "working_parked_dispatch_frame"
+      },
+      "request_context_replay_test": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_REQUEST_CONTEXT_REPLAY=true",
+        "prewarm_seconds": 14.63,
+        "status": "failed_invalid_memory_before_pcm",
+        "trace": [
+          "request-context replay saved_at=0x8b06efc",
+          "dispatch ok"
+        ],
+        "registers": {
+          "x0": "0x65f9dbd9d8",
+          "x1": "0x65fa214d80",
+          "x2": "0x2",
+          "x3": "0x86ec8c0",
+          "x19": "0x65fa213828",
+          "x20": "0x65fa21e818",
+          "x21": "0x65fa21b7f8",
+          "x22": "0x65fa21d808",
+          "x23": "0x65fa214d80",
+          "x24": "0x65fa214ea0",
+          "x25": "0x65fa2157b0",
+          "x29": "0x49d3f8fcd0",
+          "x30": "0x8509004"
+        },
+        "verdict": "capture_site_context_is_not_a_valid_dispatch_site_context"
+      },
+      "dispatch_context_replay_test": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_DISPATCH_CONTEXT_REPLAY=true",
+        "two_message_proof": {
+          "prewarm_seconds": 14.793,
+          "render_seconds": [
+            1.249,
+            0.166
+          ],
+          "sample_rate": 32000,
+          "channels": 1,
+          "duration_seconds": [
+            1.642875,
+            1.785719
+          ],
+          "sha256": [
+            "246beec387907a9c1e17687bd3be50371f9ab47a79d79fbe37ff568ca833ef2e",
+            "d393a4e89942b4e6f7943464ea93b9dbe418740f9e0ef77e75d4b55349166313"
+          ],
+          "status": "works_for_short_same_process_replay"
+        },
+        "burst_test": {
+          "prewarm_seconds": 13.266,
+          "render_seconds_before_failure": [
+            1.253,
+            0.162,
+            1.115
+          ],
+          "failed_text": "the quick brown fox jumps over the lazy dog",
+          "status": "failed_invalid_memory_in_audio_framework_thread"
+        },
+        "sp_capture_burst_retest": {
+          "prewarm_seconds": 14.686,
+          "render_seconds_before_failure": [
+            1.258,
+            0.168
+          ],
+          "failed_text": "frame replay sp burst three",
+          "status": "failed_partial_pcm_then_invalid_memory_in_audio_framework_thread"
+        },
+        "verdict": "unsafe_default_until_burst_and_idle_recovery_are_stable"
+      },
+      "status": "confirmed_context_dependent_dispatch_entry"
+    },
+    {
+      "name": "voice_text_request_state_dump",
+      "enabled_by": "TTSMODACHI_LTD_APPLIANCE_REQUEST_DUMP_DIR",
+      "dump_bytes": 4096,
+      "snapshots": [
+        "ready",
+        "dispatch"
+      ],
+      "example": {
+        "prewarm_seconds": 14.514,
+        "render_seconds": 2.167,
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": 1.5,
+        "sha256": "4364ddb290f7b5ef1d4451d416651d67c4bf1f27078c1e2bc5366ce15a9f5255",
+        "manager_slot": "0xBF8E770",
+        "manager_root": "0x65F9DBB390",
+        "manager_base": "0x65F9DBC178",
+        "request_object": "0x65F9DBD9D8",
+        "voice_context": "0x65F9DECC40",
+        "request_object_offsets": {
+          "text_pointer": "0xC0",
+          "voice_context": "0x8E8"
+        },
+        "voice_context_pointer_offsets": {
+          "0x18": "0x65F9DECC80",
+          "0x20": "0x65F9DECC20",
+          "0x28": "0x65F9DBD9A0"
+        }
+      },
+      "status": "confirmed_request_layout_probe"
+    },
+    {
+      "name": "voice_text_request_pre_dispatch",
+      "absolute": "0x894A660",
+      "module": "main",
+      "relative": "0x444660",
+      "nso_va": "0x8444660",
+      "arguments": {
+        "x2": "text_pointer",
+        "x3": "text_byte_length"
+      },
+      "status": "confirmed_text_injection_site"
+    },
+    {
+      "name": "voice_text_dispatcher",
+      "absolute": "0x8949CEC",
+      "module": "main",
+      "relative": "0x443CEC",
+      "nso_va": "0x8443CEC",
+      "direct_callers": [
+        "0x84431C4",
+        "0x84432B4",
+        "0x84446C0",
+        "0x86014F8"
+      ],
+      "argument_moves": {
+        "w0": "w1",
+        "x1": "x2_text_pointer",
+        "w2": "w3_text_byte_length",
+        "x3": "x4_context"
+      },
+      "status": "confirmed_synthesis_dispatcher"
+    },
+    {
+      "name": "voice_manager_parent_init_call",
+      "absolute": "0x8AFD554",
+      "module": "main",
+      "relative": "0x5F7554",
+      "nso_va": "0x85F7554",
+      "direct_child": "0x8B05764",
+      "labels": [
+        "CharaVoiceMgr"
+      ],
+      "context_trace": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_CONTEXT_TRACE_ADDRS=0x5f7554,0x5ff764,0x5fffe8,0x600efc",
+        "prewarm_seconds": 13.881,
+        "render_seconds": 2.493,
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": 1.785719,
+        "sha256": "a11facb53a8c7d0e842b6c766b637749eca797c883e0a3b7afbd5646c379642e"
+      },
+      "notes": [
+        "Loads the global manager pointer and calls the voice manager constructor at main+0x5FF764.",
+        "This is the smallest confirmed parent frame for the current VoiceText manager construction chain."
+      ],
+      "status": "confirmed_parent_of_voice_manager_constructor"
+    },
+    {
+      "name": "voice_manager_constructor",
+      "absolute": "0x8B05764",
+      "module": "main",
+      "relative": "0x5FF764",
+      "nso_va": "0x85FF764",
+      "direct_callers": [
+        "0x85F7554"
+      ],
+      "direct_child": "0x8B05FE8",
+      "resource_strings": [
+        "Mii/VoiceEffectSetting/Default",
+        "VoicePlayParam/Default",
+        "VoiceLanguageOffset/Default",
+        "DefualtVoiceSlot"
+      ],
+      "context_trace": {
+        "x0": "0x65f9dbb390",
+        "x1": "0x65f9dbb270",
+        "x2": "0x80000",
+        "x3": "0x7d00",
+        "x8": "0xbf8e770",
+        "x10": "0x65f9dbb2d8",
+        "x12": "0x65f9dba0f0",
+        "x14": "0x65f9dbb358",
+        "x15": "0x65f9dbb360",
+        "x19": "0x3abcaf07",
+        "x20": "0x65622984e8",
+        "x21": "0x65622983c8",
+        "x22": "0x65f9dbb270",
+        "x23": "0xbdd00d8",
+        "x24": "0xbe70b50",
+        "x25": "0x124f800",
+        "x29": "0x49d3f8fea0",
+        "x30": "0x8afd558",
+        "sp": "0x49d3f8fdd0"
+      },
+      "notes": [
+        "Allocates and stores the manager under the parent object, then calls main+0x5FFFE8.",
+        "Static disassembly shows resource wiring for voice effect, play param, language offset, and default voice slot tables."
+      ],
+      "status": "confirmed_voice_manager_constructor"
+    },
+    {
+      "name": "voice_text_resource_path_selector",
+      "absolute": "0x8B0690C",
+      "module": "main",
+      "relative": "0x60090C",
+      "nso_va": "0x880090C",
+      "direct_callers": [
+        "0x88000C4"
+      ],
+      "string_xrefs": [
+        "VoiceText/tts_single_db(D32-GLORIA).vtdb2",
+        "VoiceText/userdict_eng.csv"
+      ],
+      "context_trace_once": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_CONTEXT_TRACE_ADDRS=0x60090c",
+        "status": "failed_prewarms",
+        "registers": {
+          "x0": "0x65f9dbc218",
+          "x1": "0x49d3f8fb1f",
+          "x2": "0x12",
+          "x3": "0x0",
+          "x4": "0x49d3f8fb31",
+          "x5": "0x49d3f8fcce",
+          "x6": "0x3030303030307830",
+          "x7": "0x4345384642303030",
+          "x8": "0x49d3f8fc38",
+          "x9": "0x0",
+          "x10": "0x80",
+          "x11": "0x4",
+          "x12": "0x3030303030303030",
+          "x13": "0x3830434538464230",
+          "x14": "0x0",
+          "x15": "0xf",
+          "x19": "0x65f9dbc178",
+          "x20": "0x65f9dbc218",
+          "x21": "0xaef0a8e",
+          "x22": "0x65f9dbb270",
+          "x23": "0xbdd00d8",
+          "x24": "0xbe70b50",
+          "x25": "0x124f800",
+          "x29": "0x49d3f8fd40",
+          "x30": "0x8b060c8",
+          "sp": "0x49d3f8fc30"
+        }
+      },
+      "trace_note": "Including this block in LightningJIT block trace hit once during startup but prevented VoiceText ready prewarm, so keep it out of normal trace target sets.",
+      "status": "resource_path_selector_candidate"
+    },
+    {
+      "name": "voice_text_manager_init",
+      "absolute": "0x8B05FE8",
+      "module": "main",
+      "relative": "0x5FFFE8",
+      "nso_va": "0x85FFFE8",
+      "direct_callers": [
+        "0x85FF7A0"
+      ],
+      "strings": [
+        "VoiceText/tts_single_db(D32-HIKARI).vtdb2",
+        "VoiceTextMgr"
+      ],
+      "context_trace": {
+        "safe_trace_test": {
+          "enabled_by": "TTSMODACHI_LTD_APPLIANCE_CONTEXT_TRACE_ADDRS=0x5fffe8,0x600efc,0x600f04",
+          "prewarm_seconds": 13.716,
+          "render_seconds": 1.255,
+          "sample_rate": 32000,
+          "channels": 1,
+          "duration_seconds": 2.071438,
+          "sha256": "9b7413301bae55b288a028f83daa2cae4e6857bd0965510c652706ecf5b3fd76"
+        },
+        "parent_trace_registers": {
+          "x0": "0x65f9dbc178",
+          "x1": "0x10f0619a8",
+          "x2": "0x80000",
+          "x3": "0x86ec8c0",
+          "x8": "0x1",
+          "x10": "0x65f9dbb340",
+          "x12": "0x65f9dbc200",
+          "x13": "0x2",
+          "x14": "0x65f9dbb358",
+          "x15": "0x65f9dbb378",
+          "x19": "0x65f9dbb390",
+          "x20": "0x65f9dbb270",
+          "x21": "0x65f9dbc178",
+          "x22": "0x65f9dbb270",
+          "x23": "0xbdd00d8",
+          "x24": "0xbe70b50",
+          "x25": "0x124f800",
+          "x29": "0x49d3f8fda0",
+          "x30": "0x8b057a4",
+          "sp": "0x49d3f8fd80"
+        }
+      },
+      "notes": [
+        "Constructs the VoiceText manager state under the voice manager.",
+        "Safe context trace works here; full block tracing can still poison startup."
+      ],
+      "status": "confirmed_voice_text_manager_init_context"
+    },
+    {
+      "name": "audio_runtime_parent_init_callsite",
+      "absolute": "0x8B4FB9C",
+      "module": "main",
+      "relative": "0x649B9C",
+      "nso_va": "0x8649B9C",
+      "direct_child": "0x8B569E4",
+      "observed_followup_calls": [
+        "0x8B4FBFC -> 0x8B04AF8",
+        "0x8B4FC0C -> 0x883B2B8"
+      ],
+      "notes": [
+        "Smallest static parent found so far for the audio-runtime object graph around main+0x6509E4.",
+        "This parent builds stack config at sp+0x18, calls main+0x6509E4, then starts/configures the returned audio object through direct and virtual calls."
+      ],
+      "status": "next_no_title_bootstrap_candidate"
+    },
+    {
+      "name": "audio_runtime_construct_entry",
+      "absolute": "0x8B569E4",
+      "module": "main",
+      "relative": "0x6509E4",
+      "nso_va": "0x86509E4",
+      "direct_callers": [
+        "0x8649B9C"
+      ],
+      "context_dump_test": {
+        "enabled_by": "TTSMODACHI_LTD_APPLIANCE_CONTEXT_TRACE_ADDRS=0x6509e4,0x650bc0,0x650d90,0x650da8,0x651d24",
+        "prewarm_seconds": 15.155,
+        "render_seconds": 1.253,
+        "sample_rate": 32000,
+        "channels": 1,
+        "duration_seconds": 1.357156,
+        "sha256": "eadd372ab948dc40dfe61f3213546e788e65e41a39043451b09aa6d82ebeb76c",
+        "registers": {
+          "x0": "0x65f7406600",
+          "x1": "0x49d3f8f188",
+          "x3": "0x86ec8c0",
+          "x19": "0x65f4bbd848",
+          "x20": "0x65f4bbd598",
+          "x22": "0x65f4bc4a80",
+          "x30": "0x8b4fba0",
+          "sp": "0x49d3f8f170"
+        }
+      },
+      "status": "confirmed_audio_runtime_construct_entry"
+    },
+    {
+      "name": "audio_queue_parent_constructor_call",
+      "absolute": "0x8B56BC0",
+      "module": "main",
+      "relative": "0x650BC0",
+      "nso_va": "0x8650BC0",
+      "direct_child": "0x8B57D24",
+      "context_dump_registers": {
+        "x0": "0x65f7690018",
+        "x1": "0x65f4bbd598",
+        "x2": "0x65f74066b0",
+        "x3": "0x60",
+        "x19": "0x65f7406600",
+        "x20": "0x49d3f8f188",
+        "x21": "0x65f7406668",
+        "x22": "0x65f74066b0",
+        "x24": "0x65f7690018",
+        "sp": "0x49d3f8f120"
+      },
+      "status": "confirmed_audio_queue_parent_constructor_call"
+    },
+    {
+      "name": "audio_queue_lane_constructor",
+      "absolute": "0x8B57D24",
+      "module": "main",
+      "relative": "0x651D24",
+      "nso_va": "0x8651D24",
+      "direct_callers": [
+        "0x8650BC0"
+      ],
+      "context_dump_registers": {
+        "x0": "0x65f7690018",
+        "x1": "0x65f4bbd598",
+        "x2": "0x65f74066b0",
+        "x3": "0x60",
+        "x19": "0x65f7406600",
+        "x20": "0x49d3f8f188",
+        "x21": "0x65f7406668",
+        "x22": "0x65f74066b0",
+        "x24": "0x65f7690018",
+        "x30": "0x8b56bc4"
+      },
+      "status": "confirmed_queue_ring_constructor"
+    },
+    {
+      "name": "audio_runtime_virtual_start",
+      "absolute": "0x8B56D90",
+      "module": "main",
+      "relative": "0x650D90",
+      "nso_va": "0x8650D90",
+      "resolved_target": "0x8B04AF8",
+      "resolved_target_relative": "0x5FEAF8",
+      "registers": {
+        "x0": "0x65f88ec1b8",
+        "x8": "0x8b04af8",
+        "x19": "0x65f7406600",
+        "x21": "0x65f88ec1b8",
+        "x22": "0x65f4bbd598",
+        "x24": "0x65f88e5de8"
+      },
+      "status": "confirmed_virtual_start_call"
+    },
+    {
+      "name": "audio_runtime_virtual_configure",
+      "absolute": "0x8B56DA8",
+      "module": "main",
+      "relative": "0x650DA8",
+      "nso_va": "0x8650DA8",
+      "resolved_target": "0x883B2B8",
+      "resolved_target_relative": "0x3352B8",
+      "registers": {
+        "x0": "0x65f88ec1b8",
+        "x1": "0x1",
+        "x2": "0x0",
+        "x8": "0x883b2b8",
+        "x19": "0x65f7406600",
+        "x21": "0x65f88ec1b8",
+        "x22": "0x65f4bbd598",
+        "x24": "0x65f88e5de8"
+      },
+      "status": "confirmed_virtual_configure_call"
+    },
+    {
+      "name": "voice_text_synthesizer_setup",
+      "absolute": "0x8B06E78",
+      "module": "main",
+      "relative": "0x600E78",
+      "nso_va": "0x8600E78",
+      "status": "static_string_anchor"
+    }
+  ]
+}

@@ -353,6 +353,7 @@ PANEL_HTML = """<!doctype html>
       builtins: {},
       session: null,
       values: {
+        engine: "tl3ds",
         pitch: 50,
         speed: 50,
         quality: 50,
@@ -392,6 +393,17 @@ PANEL_HTML = """<!doctype html>
     function renderControls() {
       const controls = $("controls");
       controls.innerHTML = "";
+      const engineWrap = document.createElement("div");
+      engineWrap.className = "control";
+      engineWrap.innerHTML = `<label for="engine"><span>Engine</span><output id="engineOut">${state.values.engine}</output></label><select id="engine"><option value="tl3ds">Tomodachi Life 3DS</option><option value="ltd-switch">Living the Dream</option></select>`;
+      controls.appendChild(engineWrap);
+      $("engine").value = state.values.engine;
+      $("engine").addEventListener("change", (event) => {
+        state.values.engine = event.target.value;
+        $("engineOut").textContent = state.values.engine;
+        updateCommand();
+      });
+
       for (const [key, label, min, max, step] of ranges) {
         const wrap = document.createElement("div");
         wrap.className = "control";
@@ -417,6 +429,8 @@ PANEL_HTML = """<!doctype html>
     }
 
     function updateControlValues() {
+      $("engine").value = state.values.engine;
+      $("engineOut").textContent = state.values.engine;
       for (const [key] of ranges) {
         $(key).value = state.values[key];
         $(`${key}Out`).textContent = state.values[key];
@@ -431,7 +445,7 @@ PANEL_HTML = """<!doctype html>
       const status = state.session
         ? `Ready to save for Discord user ${state.session.userId}.`
         : "Open this panel from /voice in Discord to save directly.";
-      $("command").value = `${status}\n\npitch:${v.pitch} speed:${v.speed} quality:${v.quality} tone:${v.tone} accent:${v.accent} intonation:${v.intonation} lang:${v.lang} volume:${v.volume}`;
+      $("command").value = `${status}\n\nengine:${v.engine} pitch:${v.pitch} speed:${v.speed} quality:${v.quality} tone:${v.tone} accent:${v.accent} intonation:${v.intonation} lang:${v.lang} volume:${v.volume}`;
     }
 
     function applyVoice(params) {
@@ -624,7 +638,7 @@ PANEL_HTML = """<!doctype html>
       setStatus("ready");
     });
     $("reset").addEventListener("click", () => {
-      applyVoice({pitch: 50, speed: 50, quality: 50, tone: 50, accent: 50, intonation: 1, lang: "useng", volume: 165});
+      applyVoice({engine: "tl3ds", pitch: 50, speed: 50, quality: 50, tone: 50, accent: 50, intonation: 1, lang: "useng", volume: 165});
       setStatus("ready");
     });
 

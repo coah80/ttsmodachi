@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 import sys
 import wave
 from array import array
@@ -23,12 +24,14 @@ def amplify_wav(wav_bytes: bytes, volume: int) -> bytes:
     if sys.byteorder != "little":
         samples.byteswap()
 
+    limit_peak = max(1000, min(int(os.environ.get("TTSMODACHI_OUTPUT_LIMIT_PEAK", "32000")), 32767))
+    peak = max((abs(sample) for sample in samples), default=0)
+    if peak > 0 and peak * gain > limit_peak:
+        gain = limit_peak / peak
+
     for index, sample in enumerate(samples):
         boosted = int(sample * gain)
-        if boosted > 32767:
-            boosted = 32767
-        elif boosted < -32768:
-            boosted = -32768
+        boosted = max(min(boosted, limit_peak), -limit_peak)
         samples[index] = boosted
 
     if sys.byteorder != "little":
