@@ -20,7 +20,7 @@ RUN git init ryubing \
     && git fetch --depth 1 origin "${RYUBING_COMMIT}" \
     && git checkout FETCH_HEAD \
     && git submodule update --init --recursive \
-    && git apply --ignore-space-change --ignore-whitespace /tmp/ryubing-ttsmodachi.patch \
+    && git apply --unidiff-zero --whitespace=nowarn /tmp/ryubing-ttsmodachi.patch \
     && dotnet build -c Release -o /opt/ryubing/build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble
