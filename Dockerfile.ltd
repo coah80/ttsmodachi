@@ -14,9 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 COPY docs/ryubing-ttsmodachi.patch /tmp/ryubing-ttsmodachi.patch
-RUN git clone --recursive "${RYUBING_REPO}" ryubing \
+RUN git init ryubing \
     && cd ryubing \
-    && git checkout "${RYUBING_COMMIT}" \
+    && git remote add origin "${RYUBING_REPO}" \
+    && git fetch --depth 1 origin "${RYUBING_COMMIT}" \
+    && git checkout FETCH_HEAD \
     && git submodule update --init --recursive \
     && git apply /tmp/ryubing-ttsmodachi.patch \
     && dotnet build -c Release -o /opt/ryubing/build
