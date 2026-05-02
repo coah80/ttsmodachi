@@ -9,7 +9,7 @@ services:
       TTSMODACHI_LTD_ENABLED: "true"
       TTSMODACHI_LTD_WARM: "true"
       TTSMODACHI_LTD_APPLIANCE: "true"
-      TTSMODACHI_LTD_GAME_PATH: /ltd/game/Tomodachi Life Living the Dream.nsp
+      TTSMODACHI_LTD_GAME_PATH: /ltd/game/ltd.nsp
       TTSMODACHI_LTD_RYUBING_PATH: /opt/ryubing
       TTSMODACHI_LTD_DATA_DIR: /ltd/data
       TTSMODACHI_LTD_SEED_DATA_DIR: /ltd/seed
