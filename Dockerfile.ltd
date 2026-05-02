@@ -54,7 +54,7 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages -r /app/requir
 
 COPY api /app/api
 COPY ttsmodachi_bot /app/ttsmodachi_bot
-COPY --from=ryubing-builder /opt/ryubing /opt/ryubing
+COPY --from=ryubing-builder /opt/ryubing /ryubing
 
 RUN mkdir -p /cache /data /ltd/data /ltd/seed /ltd/work /ltd/game
 
