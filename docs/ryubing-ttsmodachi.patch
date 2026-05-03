@@ -66,6 +66,23 @@ index 3874d04..aa33e64 100644
          public static Operand EmitPtPointerLoad(ArmEmitterContext context, Operand address, Operand lblSlowPath, bool write, int size)
          {
              if (context.Memory.Type.IsHostMapped)
+diff --git a/src/ARMeilleure/Instructions/NativeInterface.cs b/src/ARMeilleure/Instructions/NativeInterface.cs
+index 3c2d9bb..5379225 100644
+--- a/src/ARMeilleure/Instructions/NativeInterface.cs
++++ b/src/ARMeilleure/Instructions/NativeInterface.cs
+@@ -188,6 +188,12 @@ namespace ARMeilleure.Instructions
+             return (ulong)function.FuncPointer.ToInt64();
+         }
+ 
++        [UnmanagedCallersOnly]
++        public static ulong TtsmodachiAppliance(ulong address)
++        {
++            return Translation.TtsmodachiAppliance.MaybeDispatch(address, GetContext(), GetMemoryManager());
++        }
++
+         [UnmanagedCallersOnly]
+         public static void InvalidateCacheLine(ulong address)
+         {
 diff --git a/src/ARMeilleure/Optimizations.cs b/src/ARMeilleure/Optimizations.cs
 index 3a76b6d..20d3cc4 100644
 --- a/src/ARMeilleure/Optimizations.cs
@@ -97,8 +114,20 @@ index 3a76b6d..20d3cc4 100644
 +        }
      }
  }
+diff --git a/src/ARMeilleure/Translation/Delegates.cs b/src/ARMeilleure/Translation/Delegates.cs
+index f44e8dc..f5c158a 100644
+--- a/src/ARMeilleure/Translation/Delegates.cs
++++ b/src/ARMeilleure/Translation/Delegates.cs
+@@ -88,6 +88,7 @@ namespace ARMeilleure.Translation
+             SetDelegateInfo(typeof(NativeInterface).GetMethod(nameof(NativeInterface.GetCtrEl0)));
+             SetDelegateInfo(typeof(NativeInterface).GetMethod(nameof(NativeInterface.GetDczidEl0)));
+             SetDelegateInfo(typeof(NativeInterface).GetMethod(nameof(NativeInterface.GetFunctionAddress)));
++            SetDelegateInfo(typeof(NativeInterface).GetMethod(nameof(NativeInterface.TtsmodachiAppliance)));
+             SetDelegateInfo(typeof(NativeInterface).GetMethod(nameof(NativeInterface.InvalidateCacheLine)));
+             SetDelegateInfo(typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadByte)));
+             SetDelegateInfo(typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadUInt16)));
 diff --git a/src/ARMeilleure/Translation/Translator.cs b/src/ARMeilleure/Translation/Translator.cs
-index b098ff4..c6925e8 100644
+index b098ff4..a889f0e 100644
 --- a/src/ARMeilleure/Translation/Translator.cs
 +++ b/src/ARMeilleure/Translation/Translator.cs
 @@ -74,6 +74,8 @@ namespace ARMeilleure.Translation
@@ -157,7 +186,7 @@ index b098ff4..c6925e8 100644
  
                          bool isLastOp = opcIndex == block.OpCodes.Count - 1;
  
-@@ -476,6 +488,101 @@ namespace ARMeilleure.Translation
+@@ -476,6 +488,108 @@ namespace ARMeilleure.Translation
              return context.GetControlFlowGraph();
          }
  
@@ -210,14 +239,21 @@ index b098ff4..c6925e8 100644
 +
 +            context.StoreToContext();
 +            Operand dispatchAddress = context.Call(
-+                typeof(TtsmodachiAppliance).GetMethod(nameof(TtsmodachiAppliance.MaybeDispatchFromContext)),
++                typeof(NativeInterface).GetMethod(nameof(NativeInterface.TtsmodachiAppliance)),
 +                Const(address));
 +
++            context.LoadFromContext();
 +            Operand lblContinue = Label();
 +            context.BranchIf(lblContinue, dispatchAddress, Const(0UL), Comparison.Equal);
 +
-+            context.LoadFromContext();
-+            InstEmitFlowHelper.EmitReturn(context, dispatchAddress);
++            if (TtsmodachiAppliance.ReturnFromDispatch)
++            {
++                InstEmitFlowHelper.EmitReturn(context, dispatchAddress);
++            }
++            else
++            {
++                InstEmitFlowHelper.EmitVirtualJump(context, dispatchAddress, isReturn: false);
++            }
 +
 +            context.MarkLabel(lblContinue);
 +        }
@@ -261,10 +297,10 @@ index b098ff4..c6925e8 100644
              const int MinsCallForRejit = 100;
 diff --git a/src/ARMeilleure/Translation/TtsmodachiAppliance.cs b/src/ARMeilleure/Translation/TtsmodachiAppliance.cs
 new file mode 100644
-index 0000000..8e0a1f9
+index 0000000..62ff501
 --- /dev/null
 +++ b/src/ARMeilleure/Translation/TtsmodachiAppliance.cs
-@@ -0,0 +1,1675 @@
+@@ -0,0 +1,1709 @@
 +using ARMeilleure.Memory;
 +using ARMeilleure.Instructions;
 +using ARMeilleure.State;
@@ -292,7 +328,9 @@ index 0000000..8e0a1f9
 +        private static readonly ulong[] PollAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_POLL_ADDRS") ?? "0x3004");
 +        private static readonly ulong[] PcmDumpAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_PCM_DUMP_ADDRS") ?? "0x465714");
 +        private static readonly ulong[] ConsumerCaptureAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_CAPTURE_ADDRS"));
++        private static readonly ulong[] ConsumerKickOnAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_ON_ADDRS"));
 +        private static readonly ulong[] ContextTraceAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_TRACE_ADDRS"));
++        private static readonly bool ContextTraceAfterDispatch = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_TRACE_AFTER_DISPATCH");
 +        private static readonly bool ContextTraceOnce = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_TRACE_ONCE", true);
 +        private static readonly string ContextDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_DIR");
 +        private static readonly int ContextDumpBytes = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_BYTES", 0), 0, 65536);
@@ -350,6 +388,7 @@ index 0000000..8e0a1f9
 +        private static readonly string ConsumerFrameFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_FILE");
 +        private static readonly bool ConsumerFrameLoad = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_LOAD", true);
 +        private static readonly bool ConsumerFrameSave = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_SAVE", true);
++        private static readonly bool ConsumerReturnSaved = string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_RETURN_MODE"), "saved", StringComparison.OrdinalIgnoreCase);
 +        private static readonly string MemoryPatchFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_MEMORY_PATCH_FILE");
 +        private static readonly bool MemoryPatchOnce = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_MEMORY_PATCH_ONCE", true);
 +        private static readonly string RequestDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_DUMP_DIR");
@@ -406,6 +445,7 @@ index 0000000..8e0a1f9
 +                 Matches(address, PollAddresses) ||
 +                 Matches(address, PcmDumpAddresses) ||
 +                 Matches(address, ConsumerCaptureAddresses) ||
++                 Matches(address, ConsumerKickOnAddresses) ||
 +                 Matches(address, ContextTraceAddresses) ||
 +                 Matches(address, [TrampolineReturnAddress]));
 +        }
@@ -413,6 +453,9 @@ index 0000000..8e0a1f9
 +        public static bool IsHostParked => Enabled && ParkEnabled && HostParkSleepMs > 0 && System.Threading.Volatile.Read(ref _parkDepth) > 0;
 +
 +        public static int HostParkSleepMilliseconds => HostParkSleepMs;
++
++        public static bool ReturnFromDispatch =>
++            !string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_DISPATCH_MODE"), "jump", StringComparison.OrdinalIgnoreCase);
 +
 +
 +        public static ulong MaybeDispatchFromContext(ulong address)
@@ -449,9 +492,24 @@ index 0000000..8e0a1f9
 +                Trace(memory, address, "consumer", CaptureConsumerCall(context, memory, address), 0, 0);
 +            }
 +
-+            if (Matches(address, ContextTraceAddresses))
++            if (Matches(address, ContextTraceAddresses) && (!ContextTraceAfterDispatch || _dispatchCount > 0))
 +            {
 +                TraceContext(context, memory, address);
++            }
++
++            if (Matches(address, ConsumerKickOnAddresses) && _dispatchCount > 0 && _pcmDumpRemainingBytes > 0)
++            {
++                RequestProbe probe = ProbeRequestObject(memory);
++                ulong ttsObject = probe.Ready ? probe.RequestObject : 0;
++                if (TryKickConsumer(context, memory, address, ttsObject, probe, address + 4, "kick-on-address", out ulong consumerAddress))
++                {
++                    return consumerAddress;
++                }
++
++                if (TracePolls)
++                {
++                    Trace(memory, address, "consumer", "kick-unavailable", ttsObject, 0, probe);
++                }
 +            }
 +
 +            bool isPollAddress = Matches(address, PollAddresses);
@@ -1065,8 +1123,20 @@ index 0000000..8e0a1f9
 +                _lastConsumerKickAt = DateTime.UtcNow;
 +            }
 +
-+            SaveContext(context, resumeAddress);
-+            for (int index = 0; index < 29; index++)
++            ulong returnAddress = ConsumerReturnSaved && saved.X.Length > 30 && saved.X[30] != 0 ? saved.X[30] : TrampolineReturnAddress;
++            if (ConsumerReturnSaved)
++            {
++                lock (Lock)
++                {
++                    _hasSavedContext = false;
++                }
++            }
++            else
++            {
++                SaveContext(context, resumeAddress);
++            }
++
++            for (int index = 0; index < 30; index++)
 +            {
 +                context.SetX(index, saved.X[index]);
 +            }
@@ -1076,7 +1146,7 @@ index 0000000..8e0a1f9
 +                context.SetV(index, saved.V[index]);
 +            }
 +
-+            context.SetX(30, TrampolineReturnAddress);
++            context.SetX(30, returnAddress);
 +            consumerAddress = ConsumerKickAddress;
 +            Trace(memory, address, "consumer", reason, ttsObject, 0, probe);
 +            return true;
@@ -1193,7 +1263,7 @@ index 0000000..8e0a1f9
 +        private static string FormatConsumerFrame(ulong[] x)
 +        {
 +            StringBuilder builder = new();
-+            for (int index = 0; index < Math.Min(29, x.Length); index++)
++            for (int index = 0; index < Math.Min(31, x.Length); index++)
 +            {
 +                if (index != 0)
 +                {
@@ -1222,7 +1292,7 @@ index 0000000..8e0a1f9
 +                    continue;
 +                }
 +
-+                if (!int.TryParse(part[1..equals], NumberStyles.Integer, CultureInfo.InvariantCulture, out int register) || register < 0 || register >= 29)
++                if (!int.TryParse(part[1..equals], NumberStyles.Integer, CultureInfo.InvariantCulture, out int register) || register < 0 || register >= 31)
 +                {
 +                    continue;
 +                }
@@ -3588,10 +3658,10 @@ index 5f243c0..e703796 100644
  }
 diff --git a/src/Ryujinx.Cpu/LightningJit/TtsmodachiAppliance.cs b/src/Ryujinx.Cpu/LightningJit/TtsmodachiAppliance.cs
 new file mode 100644
-index 0000000..f512ddb
+index 0000000..b50e2f9
 --- /dev/null
 +++ b/src/Ryujinx.Cpu/LightningJit/TtsmodachiAppliance.cs
-@@ -0,0 +1,1669 @@
+@@ -0,0 +1,1700 @@
 +using ARMeilleure.Memory;
 +using ARMeilleure.Translation;
 +using Ryujinx.Cpu.LightningJit.State;
@@ -3619,7 +3689,9 @@ index 0000000..f512ddb
 +        private static readonly ulong[] PollAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_POLL_ADDRS") ?? "0x3004");
 +        private static readonly ulong[] PcmDumpAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_PCM_DUMP_ADDRS") ?? "0x465714");
 +        private static readonly ulong[] ConsumerCaptureAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_CAPTURE_ADDRS"));
++        private static readonly ulong[] ConsumerKickOnAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_ON_ADDRS"));
 +        private static readonly ulong[] ContextTraceAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_TRACE_ADDRS"));
++        private static readonly bool ContextTraceAfterDispatch = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_TRACE_AFTER_DISPATCH");
 +        private static readonly bool ContextTraceOnce = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_TRACE_ONCE", true);
 +        private static readonly string ContextDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_DIR");
 +        private static readonly int ContextDumpBytes = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_BYTES", 0), 0, 65536);
@@ -3677,6 +3749,7 @@ index 0000000..f512ddb
 +        private static readonly string ConsumerFrameFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_FILE");
 +        private static readonly bool ConsumerFrameLoad = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_LOAD", true);
 +        private static readonly bool ConsumerFrameSave = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_SAVE", true);
++        private static readonly bool ConsumerReturnSaved = string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_RETURN_MODE"), "saved", StringComparison.OrdinalIgnoreCase);
 +        private static readonly string MemoryPatchFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_MEMORY_PATCH_FILE");
 +        private static readonly bool MemoryPatchOnce = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_MEMORY_PATCH_ONCE", true);
 +        private static readonly string RequestDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_DUMP_DIR");
@@ -3733,6 +3806,7 @@ index 0000000..f512ddb
 +                 Matches(address, PollAddresses) ||
 +                 Matches(address, PcmDumpAddresses) ||
 +                 Matches(address, ConsumerCaptureAddresses) ||
++                 Matches(address, ConsumerKickOnAddresses) ||
 +                 Matches(address, ContextTraceAddresses) ||
 +                 Matches(address, [TrampolineReturnAddress]));
 +        }
@@ -3770,9 +3844,24 @@ index 0000000..f512ddb
 +                Trace(memory, address, "consumer", CaptureConsumerCall(context, memory, address), 0, 0);
 +            }
 +
-+            if (Matches(address, ContextTraceAddresses))
++            if (Matches(address, ContextTraceAddresses) && (!ContextTraceAfterDispatch || _dispatchCount > 0))
 +            {
 +                TraceContext(context, memory, address);
++            }
++
++            if (Matches(address, ConsumerKickOnAddresses) && _dispatchCount > 0 && _pcmDumpRemainingBytes > 0)
++            {
++                RequestProbe probe = ProbeRequestObject(memory);
++                ulong ttsObject = probe.Ready ? probe.RequestObject : 0;
++                if (TryKickConsumer(context, memory, address, ttsObject, probe, address + 4, "kick-on-address", out ulong consumerAddress))
++                {
++                    return consumerAddress;
++                }
++
++                if (TracePolls)
++                {
++                    Trace(memory, address, "consumer", "kick-unavailable", ttsObject, 0, probe);
++                }
 +            }
 +
 +            bool isPollAddress = Matches(address, PollAddresses);
@@ -4386,8 +4475,20 @@ index 0000000..f512ddb
 +                _lastConsumerKickAt = DateTime.UtcNow;
 +            }
 +
-+            SaveContext(context, resumeAddress);
-+            for (int index = 0; index < 29; index++)
++            ulong returnAddress = ConsumerReturnSaved && saved.X.Length > 30 && saved.X[30] != 0 ? saved.X[30] : TrampolineReturnAddress;
++            if (ConsumerReturnSaved)
++            {
++                lock (Lock)
++                {
++                    _hasSavedContext = false;
++                }
++            }
++            else
++            {
++                SaveContext(context, resumeAddress);
++            }
++
++            for (int index = 0; index < 30; index++)
 +            {
 +                context.SetX(index, saved.X[index]);
 +            }
@@ -4397,7 +4498,7 @@ index 0000000..f512ddb
 +                context.SetV(index, saved.V[index]);
 +            }
 +
-+            context.SetX(30, TrampolineReturnAddress);
++            context.SetX(30, returnAddress);
 +            consumerAddress = ConsumerKickAddress;
 +            Trace(memory, address, "consumer", reason, ttsObject, 0, probe);
 +            return true;
@@ -4514,7 +4615,7 @@ index 0000000..f512ddb
 +        private static string FormatConsumerFrame(ulong[] x)
 +        {
 +            StringBuilder builder = new();
-+            for (int index = 0; index < Math.Min(29, x.Length); index++)
++            for (int index = 0; index < Math.Min(31, x.Length); index++)
 +            {
 +                if (index != 0)
 +                {
@@ -4543,7 +4644,7 @@ index 0000000..f512ddb
 +                    continue;
 +                }
 +
-+                if (!int.TryParse(part[1..equals], NumberStyles.Integer, CultureInfo.InvariantCulture, out int register) || register < 0 || register >= 29)
++                if (!int.TryParse(part[1..equals], NumberStyles.Integer, CultureInfo.InvariantCulture, out int register) || register < 0 || register >= 31)
 +                {
 +                    continue;
 +                }

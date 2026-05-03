@@ -381,12 +381,22 @@ Latest local proof:
   - Running `ttsmodachi_bot.renderer_service` with `TTSMODACHI_WORKER_ROMS=LTD` prewarmed the warm worker in `13.27s`; `/health` reported the then-experimental parent replay (`consumer_capture_addrs=0x2ad98c`, `consumer_kick_addr=0x2ad98c`, `appliance_consumer_kick_max=64`) and `warm_ready=true`.
   - `/render` for `http default fast profile one` returned HTTP 200, `X-Cache: MISS`, `X-Render-Time-Ms: 1354.02`, and a 32 kHz mono WAV. A second uncached request returned `X-Render-Time-Ms: 275.43`, and repeating the first text returned `X-Cache: HIT`.
   - After 12s idle, `/health` reported `warm_paused=true`, confirming the idle suspend governor still works with the parent replay default.
+- Coah x64 staging proof:
+  - The x64 Ryubing ARMeilleure appliance hook now uses an unmanaged `NativeInterface.TtsmodachiAppliance` bridge, fixing the earlier managed-call crash.
+  - `HostMappedUnsafe`/`HostMapped` still abort during x64 CPU memory-manager startup on the current Docker/.NET 10 build, before any LTD hook runs, so coah staging intentionally stays on `SoftwarePageTable`.
+  - The stable coah profile uses direct Xvfb, `SoftwarePageTable`, `main+0x3004` parking, no consumer replay, dummy audio, muted sink, and direct PCM capture at `main+0x465714`.
+  - Baseline coah API proof on port `18082`: prewarm `103.84s`, first uncached pangram render `12.825s`, 32 kHz mono WAV, cache hit immediate, paused idle CPU around `0.1%`, RSS around `7.9GiB`.
+  - Fast `main+0x927c` parking reached ready in `16.972s`, but first PCM did not arrive until `97.888s`; it is not a production profile.
+  - Parent consumer replay at `main+0x2AD98C` can speed one request, but corrupts later dispatches on coah x64; keep it disabled there.
+  - Primer prewarm is now the coah default: it pays the first synthesis at startup (`111.653s` in the proof run), then real user renders took `2.380s` and `4.577s`. This is the safest current latency win for Discord traffic.
+  - Quiet-tail PCM capture produced longer, less aggressively trimmed files but raised render time to `5.237s` and `7.321s`, so it remains an opt-in debug/quality mode instead of default.
 
 Performance note:
 
-- LightningJIT with `HostMappedUnsafe` is the current performance path and reaches/captures PCM quickly.
+- LightningJIT with `HostMappedUnsafe` is the current performance path on supported hosts and reaches/captures PCM quickly.
+- Coah x64 currently cannot use that profile reliably; its safe staging profile is `SoftwarePageTable` plus primer prewarm.
 - Hypervisor is still disabled because the hook cannot run inside the Apple Hypervisor engine.
-- ARMeilleure/software-page-table mode is only for broad tracing; it is much slower and should not be the production LTD worker mode.
+- ARMeilleure/software-page-table mode is primarily for broad tracing and x64 fallback; it is much slower than the mapped-memory path.
 
 ## Next reverse-engineering pass
 

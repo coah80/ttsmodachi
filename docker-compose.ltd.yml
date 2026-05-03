@@ -3,11 +3,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.ltd
-    command: python3 -m ttsmodachi_bot.renderer_service
+    command: >
+      bash -lc "Xvfb :99 -screen 0 640x480x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
+      export DISPLAY=:99;
+      sleep 1;
+      python3 -m ttsmodachi_bot.renderer_service"
     cpus: "6.0"
     environment:
       DOTNET_ROOT: /usr/share/dotnet
-      SDL_VIDEODRIVER: offscreen
+      DISPLAY: ":99"
+      RENDERER_HOST: 0.0.0.0
+      RENDERER_PORT: "8080"
+      SDL_AUDIODRIVER: dummy
       TTSMODACHI_WORKER_ROMS: LTD
       TTSMODACHI_LTD_ENABLED: "true"
       TTSMODACHI_LTD_WARM: "true"
@@ -23,16 +30,35 @@ services:
       TTSMODACHI_LTD_WORK_DIR: /ltd/work
       TTSMODACHI_LTD_DOTNET_ROOT: /usr/share/dotnet
       TTSMODACHI_LTD_PREWARM: "true"
-      TTSMODACHI_LTD_PREWARM_PRIMER: "false"
+      TTSMODACHI_LTD_PREWARM_PRIMER: "true"
+      TTSMODACHI_LTD_PREWARM_TEXT: "TTSmodachi ready."
+      TTSMODACHI_LTD_RENDER_POLL_SECONDS: "0.05"
+      TTSMODACHI_LTD_VOICE_TRIM_PAD_SECONDS: "0.08"
+      TTSMODACHI_LTD_VOICE_FADE_SECONDS: "0.012"
+      TTSMODACHI_LTD_APPLIANCE_CAPTURE_ADDRS: ""
+      TTSMODACHI_LTD_APPLIANCE_POLL_ADDRS: "0x3004"
+      TTSMODACHI_LTD_APPLIANCE_RETURN_ADDR: "0x3004"
+      TTSMODACHI_LTD_APPLIANCE_TRAMPOLINE_RETURN_ADDR: "0x3004"
+      TTSMODACHI_LTD_APPLIANCE_CONSUMER_CAPTURE_ADDRS: "0x465598"
+      TTSMODACHI_LTD_APPLIANCE_CONSUMER_FRAME_LOAD: "false"
+      TTSMODACHI_LTD_APPLIANCE_CONSUMER_FRAME_SAVE: "false"
+      TTSMODACHI_LTD_APPLIANCE_CONSUMER_KICK_MAX: "0"
+      TTSMODACHI_LTD_APPLIANCE_TRACE_POLLS: "false"
+      TTSMODACHI_LTD_APPLIANCE_TRACE_REQUEST_REGISTERS: "true"
+      TTSMODACHI_LTD_APPLIANCE_CONTEXT_TRACE_ADDRS: "0x4445cc,0x444660,0x443cec,0x465598,0x465714,0x3004"
+      TTSMODACHI_LTD_APPLIANCE_CONTEXT_TRACE_AFTER_DISPATCH: "true"
+    ports:
+      - "127.0.0.1:${TTSMODACHI_LTD_HOST_PORT:-18082}:8080"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 180s
     devices:
       - /dev/dri:/dev/dri
     volumes:
+      - ${TTSMODACHI_LTD_RYUBING_BUILD:-/home/cole/ryubing-out-codex-nativehook}:/ryubing/build:ro
       - ./ltd/game:/ltd/game:ro
       - ./ltd/seed:/ltd/seed:ro
       - ltd-data:/ltd/data
