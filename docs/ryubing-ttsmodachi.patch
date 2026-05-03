@@ -98,7 +98,7 @@ index 3a76b6d..20d3cc4 100644
      }
  }
 diff --git a/src/ARMeilleure/Translation/Translator.cs b/src/ARMeilleure/Translation/Translator.cs
-index b098ff4..715a6c3 100644
+index b098ff4..c6925e8 100644
 --- a/src/ARMeilleure/Translation/Translator.cs
 +++ b/src/ARMeilleure/Translation/Translator.cs
 @@ -74,6 +74,8 @@ namespace ARMeilleure.Translation
@@ -217,7 +217,7 @@ index b098ff4..715a6c3 100644
 +            context.BranchIf(lblContinue, dispatchAddress, Const(0UL), Comparison.Equal);
 +
 +            context.LoadFromContext();
-+            InstEmitFlowHelper.EmitVirtualJump(context, dispatchAddress, isReturn: false);
++            InstEmitFlowHelper.EmitReturn(context, dispatchAddress);
 +
 +            context.MarkLabel(lblContinue);
 +        }
