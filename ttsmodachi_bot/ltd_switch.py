@@ -854,7 +854,7 @@ class LtdSwitchWorker:
                     "RYUJINX_TTSMODACHI_APPLIANCE_PCM_CAPTURE_TEXT_BYTES_PER_SECOND": os.environ.get("TTSMODACHI_LTD_APPLIANCE_PCM_CAPTURE_TEXT_BYTES_PER_SECOND", "14.0"),
                     "RYUJINX_TTSMODACHI_BLOCK_TRACE_ADDRS": os.environ.get(
                         "TTSMODACHI_LTD_APPLIANCE_BLOCK_TRACE_ADDRS",
-                        self.addresses.default_block_trace_addrs,
+                        "",
                     ),
                 }
             )
@@ -1002,6 +1002,8 @@ class LtdSwitchWorker:
             self._restart_warm_process(f"LTD warm process exited with code {process.returncode} while idle")
             return
         if self._warm_last_activity_at is None or time.monotonic() - self._warm_last_activity_at < self._warm_idle_suspend_seconds:
+            return
+        if self._warm_prewarm_finished_at is None or not self.is_warm_ready():
             return
         try:
             os.kill(process.pid, signal.SIGSTOP)

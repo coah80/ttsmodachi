@@ -2,18 +2,45 @@ diff --git a/src/ARMeilleure/Instructions/InstEmitMemoryHelper.cs b/src/ARMeille
 index 3874d04..aa33e64 100644
 --- a/src/ARMeilleure/Instructions/InstEmitMemoryHelper.cs
 +++ b/src/ARMeilleure/Instructions/InstEmitMemoryHelper.cs
-@@ -3,0 +4 @@ using ARMeilleure.Memory;
+@@ -1,6 +1,7 @@
+ using ARMeilleure.Decoders;
+ using ARMeilleure.IntermediateRepresentation;
+ using ARMeilleure.Memory;
 +using ARMeilleure.State;
-@@ -298,0 +300,2 @@ namespace ARMeilleure.Instructions
+ using ARMeilleure.Translation;
+ using ARMeilleure.Translation.PTC;
+ using System;
+@@ -296,6 +297,8 @@ namespace ARMeilleure.Instructions
+                 value = context.ConvertI64ToI32(value);
+             }
+ 
 +            EmitTtsmodachiWriteTrace(context, address, size);
 +
-@@ -340,0 +344,2 @@ namespace ARMeilleure.Instructions
+             switch (size)
+             {
+                 case 0:
+@@ -338,6 +341,8 @@ namespace ARMeilleure.Instructions
+                 value = context.ConvertI64ToI32(value);
+             }
+ 
 +            EmitTtsmodachiWriteTrace(context, address, size);
 +
-@@ -368,0 +374,2 @@ namespace ARMeilleure.Instructions
+             if (size == 0)
+             {
+                 context.Store8(physAddr, value);
+@@ -366,6 +371,8 @@ namespace ARMeilleure.Instructions
+ 
+             Operand value = GetVec(rt);
+ 
 +            EmitTtsmodachiWriteTrace(context, address, size);
 +
-@@ -399,0 +407,22 @@ namespace ARMeilleure.Instructions
+             switch (size)
+             {
+                 case 0:
+@@ -397,6 +404,28 @@ namespace ARMeilleure.Instructions
+             }
+         }
+ 
 +        private static void EmitTtsmodachiWriteTrace(ArmEmitterContext context, Operand address, int size)
 +        {
 +            if (!TtsmodachiMemoryWriteTrace.Enabled)
@@ -36,40 +63,93 @@ index 3874d04..aa33e64 100644
 +            context.Call(info, traceAddress, Const(byteSize), Const(context.CurrOp.Address), linkRegister, register0, register1, register2);
 +        }
 +
+         public static Operand EmitPtPointerLoad(ArmEmitterContext context, Operand address, Operand lblSlowPath, bool write, int size)
+         {
+             if (context.Memory.Type.IsHostMapped)
 diff --git a/src/ARMeilleure/Optimizations.cs b/src/ARMeilleure/Optimizations.cs
 index 3a76b6d..20d3cc4 100644
 --- a/src/ARMeilleure/Optimizations.cs
 +++ b/src/ARMeilleure/Optimizations.cs
-@@ -2,0 +3 @@ namespace ARMeilleure
+@@ -1,5 +1,6 @@
+ namespace ARMeilleure
+ {
 +    using System;
-@@ -14 +15 @@ namespace ARMeilleure
+     using Arm64HardwareCapabilities = ARMeilleure.CodeGen.Arm64.HardwareCapabilities;
+     using X86HardwareCapabilities = ARMeilleure.CodeGen.X86.HardwareCapabilities;
+ 
+@@ -11,7 +12,7 @@ namespace ARMeilleure
+         public static bool FastFP { get; set; } = true;
+ 
+         public static bool AllowLcqInFunctionTable { get; set; } = true;
 -        public static bool UseUnmanagedDispatchLoop { get; set; } = true;
 +        public static bool UseUnmanagedDispatchLoop { get; set; } = !IsTtsmodachiManagedDispatch();
-@@ -73,0 +75,5 @@ namespace ARMeilleure
+         public static bool EnableDebugging { get; set; } = false;
+         public static bool EnableDeepCallRecursionProtection { get; set; } = true;
+ 
+@@ -71,5 +72,10 @@ namespace ARMeilleure
+ 
+         internal static bool UseAvx512Ortho => UseAvx512F && UseAvx512Vl;
+         internal static bool UseAvx512OrthoFloat => UseAvx512Ortho && UseAvx512Dq;
 +
 +        private static bool IsTtsmodachiManagedDispatch()
 +        {
 +            return bool.TryParse(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_MANAGED_DISPATCH"), out bool managedDispatch) && managedDispatch;
 +        }
+     }
+ }
 diff --git a/src/ARMeilleure/Translation/Translator.cs b/src/ARMeilleure/Translation/Translator.cs
-index b098ff4..f6ee6f5 100644
+index b098ff4..9c05ca3 100644
 --- a/src/ARMeilleure/Translation/Translator.cs
 +++ b/src/ARMeilleure/Translation/Translator.cs
-@@ -76,0 +77,2 @@ namespace ARMeilleure.Translation
+@@ -74,6 +74,8 @@ namespace ARMeilleure.Translation
+ 
+         public void Execute(State.ExecutionContext context, ulong address)
+         {
 +            TtsmodachiGuestTrace.ApplyRuntimeOverrides();
 +
-@@ -140 +142 @@ namespace ARMeilleure.Translation
+             if (Interlocked.Increment(ref _threadCount) == 1)
+             {
+                 if (_ptc.State == PtcState.Enabled)
+@@ -137,7 +139,7 @@ namespace ARMeilleure.Translation
+                 }
+                 while (context.Running && context.DebugPc != 0);
+             }
 -            else if (Optimizations.UseUnmanagedDispatchLoop)
 +            else if (Optimizations.UseUnmanagedDispatchLoop && !TtsmodachiGuestTrace.ManagedDispatchEnabled)
-@@ -185,0 +188 @@ namespace ARMeilleure.Translation
+             {
+                 Stubs.DispatchLoop(context.NativeContextPtr, address);
+             }
+@@ -183,6 +185,7 @@ namespace ARMeilleure.Translation
+         private ulong ExecuteSingle(State.ExecutionContext context, ulong address)
+         {
+             TranslatedFunction func = GetOrTranslate(address, context.ExecutionMode);
 +            TtsmodachiGuestTrace.MaybeTrace(nameof(ExecuteSingle), address, context.ExecutionMode, func.HighCq, singleStep: false, context);
-@@ -244,0 +248,2 @@ namespace ARMeilleure.Translation
+ 
+             Statistics.StartTimer();
+ 
+@@ -242,6 +245,8 @@ namespace ARMeilleure.Translation
+ 
+         internal TranslatedFunction Translate(ulong address, ExecutionMode mode, bool highCq, bool singleStep = false, bool pptcTranslation = false)
+         {
 +            TtsmodachiGuestTrace.MaybeTrace(nameof(Translate), address, mode, highCq, singleStep);
 +
-@@ -389,0 +395,2 @@ namespace ARMeilleure.Translation
+             ArmEmitterContext context = new(
+                 Memory,
+                 CountTable,
+@@ -387,6 +392,9 @@ namespace ARMeilleure.Translation
+                 context.CurrBlock = block;
+ 
+                 context.MarkLabel(context.GetLabel(block.Address));
 +                EmitTtsmodachiTextInject(context, block.Address);
 +                EmitTtsmodachiBlockTrace(context, block.Address);
-@@ -478,0 +486,74 @@ namespace ARMeilleure.Translation
++                EmitTtsmodachiAppliance(context, block.Address);
+ 
+                 if (block.Exit)
+                 {
+@@ -476,6 +484,102 @@ namespace ARMeilleure.Translation
+             return context.GetControlFlowGraph();
+         }
+ 
 +        private static void EmitTtsmodachiBlockTrace(ArmEmitterContext context, ulong address)
 +        {
 +            if (!TtsmodachiBlockTrace.Enabled || !TtsmodachiBlockTrace.Matches(address))
@@ -110,6 +190,28 @@ index b098ff4..f6ee6f5 100644
 +                TraceRegister(30));
 +        }
 +
++        private static void EmitTtsmodachiAppliance(ArmEmitterContext context, ulong address)
++        {
++            if (!TtsmodachiAppliance.ShouldHook(address))
++            {
++                return;
++            }
++
++            context.StoreToContext();
++            Operand dispatchAddress = context.Call(
++                typeof(TtsmodachiAppliance).GetMethod(nameof(TtsmodachiAppliance.MaybeDispatchFromContext)),
++                Const(address));
++
++            Operand lblContinue = Label();
++            context.BranchIf(lblContinue, dispatchAddress, Const(0UL), Comparison.Equal);
++
++            context.LoadFromContext();
++            InstEmitFlowHelper.EmitVirtualJump(context, dispatchAddress, isReturn: false);
++
++            context.MarkLabel(lblContinue);
++            context.LoadFromContext();
++        }
++
 +        private static Operand TraceRegister(int regIndex)
 +        {
 +            return Register(regIndex, RegisterType.Integer, OperandType.I64);
@@ -144,6 +246,1690 @@ index b098ff4..f6ee6f5 100644
 +            context.Copy(Register(3, RegisterType.Integer, OperandType.I64), Const((ulong)bytes.Length));
 +        }
 +
+         internal static void EmitRejitCheck(ArmEmitterContext context, out Counter<uint> counter)
+         {
+             const int MinsCallForRejit = 100;
+diff --git a/src/ARMeilleure/Translation/TtsmodachiAppliance.cs b/src/ARMeilleure/Translation/TtsmodachiAppliance.cs
+new file mode 100644
+index 0000000..8e0a1f9
+--- /dev/null
++++ b/src/ARMeilleure/Translation/TtsmodachiAppliance.cs
+@@ -0,0 +1,1675 @@
++using ARMeilleure.Memory;
++using ARMeilleure.Instructions;
++using ARMeilleure.State;
++using System;
++using System.Collections.Generic;
++using System.Globalization;
++using System.IO;
++using System.Linq;
++using System.Security.Cryptography;
++using System.Text;
++using Thread = System.Threading.Thread;
++using V128 = ARMeilleure.State.V128;
++
++namespace ARMeilleure.Translation
++{
++    public static class TtsmodachiAppliance
++    {
++        private const int DefaultMaxBytes = 96;
++
++        private static readonly bool Enabled = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE");
++        private static readonly ulong BaseAddress = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_GUEST_TRACE_BASE"));
++        private static readonly ulong RequestAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_ADDR") ?? "0x4445cc"));
++        private static readonly ulong ReturnAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_RETURN_ADDR") ?? "0x3004"));
++        private static readonly ulong[] CaptureAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CAPTURE_ADDRS") ?? "0x600f04,0x600efc");
++        private static readonly ulong[] PollAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_POLL_ADDRS") ?? "0x3004");
++        private static readonly ulong[] PcmDumpAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_PCM_DUMP_ADDRS") ?? "0x465714");
++        private static readonly ulong[] ConsumerCaptureAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_CAPTURE_ADDRS"));
++        private static readonly ulong[] ContextTraceAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_TRACE_ADDRS"));
++        private static readonly bool ContextTraceOnce = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_TRACE_ONCE", true);
++        private static readonly string ContextDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_DIR");
++        private static readonly int ContextDumpBytes = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_BYTES", 0), 0, 65536);
++        private static readonly int[] ContextDumpRegisters = ParseRegisterList(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_REGISTERS") ?? "0,1,2,3,19,20,21,22,23,24,29,30,31");
++        private static readonly ulong ConsumerKickAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_ADDR") ?? "0"));
++        private static readonly int ConsumerKickMax = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_MAX", 0));
++        private static readonly int ConsumerKickIntervalMs = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_INTERVAL_MS", 0));
++        private static readonly int ConsumerKickAfterDispatchMax = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_AFTER_DISPATCH_MAX", 0));
++        private static readonly int CaptureRegister = ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CAPTURE_REGISTER", 24);
++        private static readonly int WrapperCaptureRegister = ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_WRAPPER_CAPTURE_REGISTER", 19);
++        private static readonly bool DispatchOnCapture = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE_DISPATCH_ON_CAPTURE");
++        private static readonly bool ContextRestoreDispatch = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_RESTORE");
++        private static readonly bool ParkOnCaptureReady = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_PARK_ON_CAPTURE_READY", false);
++        private static readonly bool RequestContextReplay = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_CONTEXT_REPLAY", false);
++        private static readonly bool RequestContextCapture = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_CONTEXT_CAPTURE", false) || RequestContextReplay;
++        private static readonly bool DispatchContextReplay = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_DISPATCH_CONTEXT_REPLAY", false);
++        private static readonly ulong TrampolineReturnAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_TRAMPOLINE_RETURN_ADDR") ?? Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_RETURN_ADDR") ?? "0x3004"));
++        private static readonly ulong ContextResumeAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_RESUME_ADDR") ?? "0"));
++        private static readonly bool DispatchWrapper = string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_DISPATCH_OBJECT"), "wrapper", StringComparison.OrdinalIgnoreCase);
++        private static readonly string PcmDumpPath = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_PCM_DUMP");
++        private static readonly string PcmAckFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_PCM_ACK_FILE");
++        private static readonly int PcmPointerRegister = ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_PCM_POINTER_REGISTER", 20);
++        private static readonly int PcmSizeRegister = ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_PCM_SIZE_REGISTER", 22);
++        private static readonly int PcmDumpMaxBytes = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_PCM_DUMP_MAX_BYTES", 64 * 1024 * 1024));
++        private static readonly int PcmSampleRate = Math.Max(1, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_PCM_SAMPLE_RATE", 32000));
++        private static readonly float PcmMinSeconds = Math.Max(0.1f, ReadFloat("RYUJINX_TTSMODACHI_APPLIANCE_PCM_MIN_SECONDS", 1.0f));
++        private static readonly float PcmMaxSeconds = Math.Max(PcmMinSeconds, ReadFloat("RYUJINX_TTSMODACHI_APPLIANCE_PCM_MAX_SECONDS", 5.0f));
++        private static readonly float PcmTextBytesPerSecond = Math.Max(1.0f, ReadFloat("RYUJINX_TTSMODACHI_APPLIANCE_PCM_TEXT_BYTES_PER_SECOND", 14.0f));
++        private static readonly float PcmCaptureTextBytesPerSecond = Math.Max(1.0f, ReadFloat("RYUJINX_TTSMODACHI_APPLIANCE_PCM_CAPTURE_TEXT_BYTES_PER_SECOND", PcmTextBytesPerSecond));
++        private static readonly int MaxBytes = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_TEXT_MAX_BYTES", DefaultMaxBytes), 1, 512);
++        private static readonly ulong ManagerGlobalAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_MANAGER_GLOBAL_ADDR") ?? "0x32ccde0"));
++        private static readonly ulong ManagerInnerOffset = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_MANAGER_INNER_OFFSET") ?? "0xda0");
++        private static readonly ulong RequestObjectOffset = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_OBJECT_OFFSET") ?? "0x1860");
++        private static readonly ulong TextBufferOffset = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_TEXT_BUFFER_OFFSET") ?? "0xcc");
++        private static readonly ulong TextPointerOffset = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_TEXT_POINTER_OFFSET") ?? "0xc0");
++        private static readonly ulong TextLengthOffset = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_TEXT_LENGTH_OFFSET") ?? "0xc8");
++        private static readonly ulong ReadyFlagOffset = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_READY_FLAG_OFFSET") ?? "0x8d8");
++        private static readonly ulong AlternateTextFlagOffset = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_ALT_TEXT_FLAG_OFFSET") ?? "0x8d0");
++        private static readonly ulong VoiceContextOffset = ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_VOICE_CONTEXT_OFFSET") ?? "0x8e8");
++        private static readonly int DispatchMax = Math.Max(1, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_DISPATCH_MAX", 1000000));
++        private static readonly int DispatchIntervalMs = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_DISPATCH_INTERVAL_MS", 1200));
++        private static readonly int TextDispatchRepeats = Math.Max(1, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_TEXT_REPEATS", 5));
++        private static readonly bool ParkEnabled = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE_PARK");
++        private static readonly int ParkPollMs = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_PARK_POLL_MS", 25), 1, 1000);
++        private static readonly int ParkMaxMs = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_PARK_MAX_MS", 0));
++        private static readonly int HostParkSleepMs = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_HOST_PARK_SLEEP_MS", 8), 0, 100);
++        private static readonly string TracePath = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_TRACE");
++        private static readonly int TraceMaxEvents = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_TRACE_MAX_EVENTS", 10000));
++        private static readonly bool TracePolls = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE_TRACE_POLLS");
++        private static readonly bool TraceConsumerRegisters = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE_TRACE_CONSUMER_REGISTERS");
++        private static readonly bool TraceRequestRegisters = ReadBool("RYUJINX_TTSMODACHI_APPLIANCE_TRACE_REQUEST_REGISTERS");
++        private static readonly string ConsumerDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_DUMP_DIR");
++        private static readonly int ConsumerDumpBytes = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_DUMP_BYTES", 0), 0, 65536);
++        private static readonly int[] ConsumerDumpRegisters = ParseRegisterList(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_DUMP_REGISTERS") ?? "0,19,21,22");
++        private static readonly string ConsumerFrameFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_FILE");
++        private static readonly bool ConsumerFrameLoad = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_LOAD", true);
++        private static readonly bool ConsumerFrameSave = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_FRAME_SAVE", true);
++        private static readonly string MemoryPatchFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_MEMORY_PATCH_FILE");
++        private static readonly bool MemoryPatchOnce = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_MEMORY_PATCH_ONCE", true);
++        private static readonly string RequestDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_DUMP_DIR");
++        private static readonly int RequestDumpBytes = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_DUMP_BYTES", 0), 0, 65536);
++        private static readonly bool RequestDumpOnce = !string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_REQUEST_DUMP_ONCE"), "false", StringComparison.OrdinalIgnoreCase);
++        private static readonly string TextFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_TEXT_FILE");
++        private static readonly byte[] StaticText = EncodeText(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_TEXT") ?? string.Empty);
++        private static readonly object Lock = new();
++
++        private static ulong _ttsObject;
++        private static ulong _wrapperObject;
++        private static string _lastFileText = string.Empty;
++        private static DateTime _lastFileMtime;
++        private static int _fileTextDispatchesRemaining;
++        private static int _staticTextDispatchesRemaining = StaticText.Length > 0 ? TextDispatchRepeats : 0;
++        private static int _dispatchCount;
++        private static DateTime _lastDispatchAt;
++        private static int _pcmDumpBytes;
++        private static int _pcmDumpRemainingBytes;
++        private static string _lastPcmAckToken = string.Empty;
++        private static int _traceEvents;
++        private static bool _traceHeaderWritten;
++        private static int _consumerDumpCount;
++        private static int _contextDumpCount;
++        private static SavedContext _savedContext;
++        private static bool _hasSavedContext;
++        private static SavedContext _savedRequestContext;
++        private static bool _hasSavedRequestContext;
++        private static ulong _savedRequestContextAddress;
++        private static SavedContext _savedDispatchContext;
++        private static bool _hasSavedDispatchContext;
++        private static ulong _savedDispatchContextAddress;
++        private static SavedConsumerCall _savedConsumerCall;
++        private static bool _hasSavedConsumerCall;
++        private static int _consumerKickCount;
++        private static int _consumerKickAfterDispatchCount;
++        private static DateTime _lastConsumerKickAt;
++        private static int _requestDumpCount;
++        private static bool _dumpedRequestReady;
++        private static bool _dumpedRequestDispatch;
++        private static bool _memoryPatchApplied;
++        private static int _parkDepth;
++        private static readonly HashSet<ulong> ContextTraceSeen = [];
++
++        static TtsmodachiAppliance()
++        {
++            LoadConsumerFrame();
++        }
++
++        public static bool ShouldHook(ulong address)
++        {
++            return Enabled &&
++                (Matches(address, CaptureAddresses) ||
++                 Matches(address, PollAddresses) ||
++                 Matches(address, PcmDumpAddresses) ||
++                 Matches(address, ConsumerCaptureAddresses) ||
++                 Matches(address, ContextTraceAddresses) ||
++                 Matches(address, [TrampolineReturnAddress]));
++        }
++
++        public static bool IsHostParked => Enabled && ParkEnabled && HostParkSleepMs > 0 && System.Threading.Volatile.Read(ref _parkDepth) > 0;
++
++        public static int HostParkSleepMilliseconds => HostParkSleepMs;
++
++
++        public static ulong MaybeDispatchFromContext(ulong address)
++        {
++            return MaybeDispatch(address, NativeInterface.GetContext(), NativeInterface.GetMemoryManager());
++        }
++
++        public static ulong MaybeDispatch(ulong address, ExecutionContext context, IMemoryManager memory)
++        {
++            if (!Enabled)
++            {
++                return 0;
++            }
++
++            if (ContextRestoreDispatch && TryRestoreAfterDispatch(address, context, memory, out ulong resumeAddress))
++            {
++                return resumeAddress;
++            }
++
++            if (Matches(address, CaptureAddresses))
++            {
++                CaptureObject(context);
++                CaptureRequestContext(context, memory, address);
++                Trace(memory, address, "capture", "capture-address", 0, 0);
++            }
++
++            if (Matches(address, PcmDumpAddresses))
++            {
++                DumpPcm(context, memory);
++            }
++
++            if (Matches(address, ConsumerCaptureAddresses))
++            {
++                Trace(memory, address, "consumer", CaptureConsumerCall(context, memory, address), 0, 0);
++            }
++
++            if (Matches(address, ContextTraceAddresses))
++            {
++                TraceContext(context, memory, address);
++            }
++
++            bool isPollAddress = Matches(address, PollAddresses);
++            bool isCaptureDispatchAddress = DispatchOnCapture && Matches(address, CaptureAddresses);
++            bool canParkHere = ParkEnabled && (isPollAddress || (ParkOnCaptureReady && isCaptureDispatchAddress));
++
++            if (!isPollAddress && !isCaptureDispatchAddress)
++            {
++                return 0;
++            }
++
++            DateTime parkStartedAt = DateTime.UtcNow;
++            bool tracedPark = false;
++            bool parked = false;
++
++            try
++            {
++                while (true)
++                {
++                    lock (Lock)
++                    {
++                        RequestProbe probe = ProbeRequestObject(memory);
++                        ulong ttsObject = probe.Ready ? probe.RequestObject : 0;
++                        bool restoreContext = ContextRestoreDispatch && isCaptureDispatchAddress && TrampolineReturnAddress != 0;
++                        if (isCaptureDispatchAddress && !restoreContext && ttsObject != 0 && probe.CapturedObject != probe.RequestObject)
++                        {
++                            if (TracePolls)
++                            {
++                                Trace(memory, address, "poll", "capture-object-mismatch", ttsObject, 0, probe);
++                            }
++                            return 0;
++                        }
++
++                        if (ttsObject == 0)
++                        {
++                            if (TracePolls)
++                            {
++                                Trace(memory, address, "poll", probe.Reason, 0, 0, probe);
++                            }
++                            return 0;
++                        }
++
++                        ApplyPcmAck(memory, address, ttsObject, probe);
++                        DumpRequestState(memory, address, probe, "ready");
++
++                        ulong dispatchObject = DispatchWrapper ? _wrapperObject : ttsObject;
++                        if (dispatchObject == 0)
++                        {
++                            if (TracePolls)
++                            {
++                                Trace(memory, address, "poll", "no-dispatch-object", ttsObject, 0, probe);
++                            }
++                            return 0;
++                        }
++
++                        if (_dispatchCount >= DispatchMax)
++                        {
++                            Trace(memory, address, "poll", "dispatch-max", ttsObject, 0, probe);
++                            return 0;
++                        }
++
++                        if (CanDispatchNow())
++                        {
++                            byte[] text = ReadPendingText();
++                            if (text.Length != 0)
++                            {
++                                PrepareObject(memory, ttsObject, text);
++                                if (restoreContext)
++                                {
++                                    SaveContext(context, ContextResumeAddress != 0 ? ContextResumeAddress : address + 4);
++                                    context.SetX(30, TrampolineReturnAddress);
++                                }
++                                else if (DispatchContextReplay && TryRestoreDispatchContext(context, memory, address, probe))
++                                {
++                                    context.SetX(30, isPollAddress && ReturnAddress != 0 ? ReturnAddress : address + 4);
++                                }
++                                else if (RequestContextReplay && TryRestoreRequestContext(context, memory, address, probe))
++                                {
++                                    context.SetX(30, isPollAddress && ReturnAddress != 0 ? ReturnAddress : address + 4);
++                                }
++                                else
++                                {
++                                    CaptureDispatchContext(context, address);
++                                    context.SetX(30, isPollAddress && ReturnAddress != 0 ? ReturnAddress : address + 4);
++                                }
++                                context.SetX(0, dispatchObject);
++                                _dispatchCount++;
++                                _consumerKickCount = 0;
++                                _consumerKickAfterDispatchCount = 0;
++                                _lastConsumerKickAt = default;
++                                _lastDispatchAt = DateTime.UtcNow;
++                                _pcmDumpRemainingBytes = EstimatePcmBytes(text.Length);
++                                MarkTextDispatched();
++                                DumpRequestState(memory, address, probe, "dispatch");
++                                if (TraceRequestRegisters)
++                                {
++                                    Trace(memory, address, "request-registers", FormatRequestRegisters(context), ttsObject, text.Length, probe);
++                                }
++                                Trace(memory, address, "dispatch", "ok", ttsObject, text.Length, probe);
++                                ApplyMemoryPatches(memory, address, "dispatch", ttsObject, probe);
++
++                                return RequestAddress;
++                            }
++
++                            if (_pcmDumpRemainingBytes > 0)
++                            {
++                                if (TryKickConsumer(context, memory, address, ttsObject, probe, address, "kick", out ulong consumerAddress))
++                                {
++                                    return consumerAddress;
++                                }
++
++                                if (TracePolls)
++                                {
++                                    Trace(memory, address, "poll", "pcm-pending", ttsObject, 0, probe);
++                                }
++                                return 0;
++                            }
++
++                            if (!canParkHere)
++                            {
++                                if (TracePolls)
++                                {
++                                    Trace(memory, address, "poll", "no-text", ttsObject, 0, probe);
++                                }
++                                return 0;
++                            }
++
++                            if (!tracedPark)
++                            {
++                                Trace(memory, address, "park", "waiting-for-text", ttsObject, 0, probe);
++                                tracedPark = true;
++                            }
++
++                            EnterPark(ref parked);
++                        }
++                        else if (!canParkHere)
++                        {
++                            if (TracePolls)
++                            {
++                                Trace(memory, address, "poll", "dispatch-interval", ttsObject, 0, probe);
++                            }
++                            return 0;
++                        }
++                        else if (_pcmDumpRemainingBytes > 0)
++                        {
++                            if (TryKickConsumer(context, memory, address, ttsObject, probe, address, "kick", out ulong consumerAddress))
++                            {
++                                return consumerAddress;
++                            }
++
++                            if (TracePolls)
++                            {
++                                Trace(memory, address, "poll", "pcm-pending", ttsObject, 0, probe);
++                            }
++                            return 0;
++                        }
++                    }
++
++                    if (ParkMaxMs > 0 && (DateTime.UtcNow - parkStartedAt).TotalMilliseconds >= ParkMaxMs)
++                    {
++                        return 0;
++                    }
++
++                    Thread.Sleep(ParkPollMs);
++                }
++            }
++            finally
++            {
++                ExitPark(ref parked);
++            }
++        }
++
++        private static void EnterPark(ref bool parked)
++        {
++            if (parked)
++            {
++                return;
++            }
++
++            System.Threading.Interlocked.Increment(ref _parkDepth);
++            parked = true;
++        }
++
++        private static void ExitPark(ref bool parked)
++        {
++            if (!parked)
++            {
++                return;
++            }
++
++            System.Threading.Interlocked.Decrement(ref _parkDepth);
++            parked = false;
++        }
++
++        private static bool CanDispatchNow()
++        {
++            return _dispatchCount == 0 || DispatchIntervalMs == 0 || (DateTime.UtcNow - _lastDispatchAt).TotalMilliseconds >= DispatchIntervalMs;
++        }
++
++        private static void ApplyPcmAck(IMemoryManager memory, ulong address, ulong ttsObject, RequestProbe probe)
++        {
++            if (string.IsNullOrWhiteSpace(PcmAckFile))
++            {
++                return;
++            }
++
++            try
++            {
++                if (!File.Exists(PcmAckFile))
++                {
++                    return;
++                }
++
++                string token = File.ReadAllText(PcmAckFile).Trim();
++                if (string.IsNullOrWhiteSpace(token) || string.Equals(token, _lastPcmAckToken, StringComparison.Ordinal))
++                {
++                    return;
++                }
++
++                _lastPcmAckToken = token;
++                if (_pcmDumpRemainingBytes <= 0)
++                {
++                    return;
++                }
++
++                _pcmDumpRemainingBytes = 0;
++                Trace(memory, address, "pcm", "host-ack", ttsObject, 0, probe);
++            }
++            catch
++            {
++            }
++        }
++
++        private static bool CanKickConsumerNow()
++        {
++            return ConsumerKickAddress != 0 &&
++                ConsumerKickMax > 0 &&
++                _consumerKickCount < ConsumerKickMax &&
++                _hasSavedConsumerCall &&
++                (ConsumerKickIntervalMs == 0 || (DateTime.UtcNow - _lastConsumerKickAt).TotalMilliseconds >= ConsumerKickIntervalMs);
++        }
++
++        private static void CaptureObject(ExecutionContext context)
++        {
++            if ((uint)CaptureRegister < 31)
++            {
++                ulong pointer = context.GetX(CaptureRegister);
++                if (pointer != 0)
++                {
++                    lock (Lock)
++                    {
++                        _ttsObject = pointer;
++                    }
++                }
++            }
++
++            if ((uint)WrapperCaptureRegister < 31)
++            {
++                ulong pointer = context.GetX(WrapperCaptureRegister);
++                if (pointer != 0)
++                {
++                    lock (Lock)
++                    {
++                        _wrapperObject = pointer;
++                    }
++                }
++            }
++        }
++
++        private static void CaptureRequestContext(ExecutionContext context, IMemoryManager memory, ulong address)
++        {
++            if (!RequestContextCapture)
++            {
++                return;
++            }
++
++            RequestProbe probe = ProbeRequestObject(memory);
++            if (!probe.Ready)
++            {
++                return;
++            }
++
++            SavedContext saved = BuildSavedContext(context, address + 4);
++            lock (Lock)
++            {
++                _savedRequestContext = saved;
++                _savedRequestContextAddress = address;
++                _hasSavedRequestContext = true;
++            }
++        }
++
++        private static void CaptureDispatchContext(ExecutionContext context, ulong address)
++        {
++            if (!DispatchContextReplay)
++            {
++                return;
++            }
++
++            SavedContext saved = BuildSavedContext(context, address + 4);
++            lock (Lock)
++            {
++                _savedDispatchContext = saved;
++                _savedDispatchContextAddress = address;
++                _hasSavedDispatchContext = true;
++            }
++        }
++
++        private static void SaveContext(ExecutionContext context, ulong resumeAddress)
++        {
++            SavedContext saved = BuildSavedContext(context, resumeAddress);
++            lock (Lock)
++            {
++                _savedContext = saved;
++                _hasSavedContext = true;
++            }
++        }
++
++        private static SavedContext BuildSavedContext(ExecutionContext context, ulong resumeAddress)
++        {
++            ulong[] x = new ulong[32];
++            V128[] v = new V128[32];
++
++            for (int index = 0; index < x.Length; index++)
++            {
++                x[index] = context.GetX(index);
++            }
++
++            for (int index = 0; index < v.Length; index++)
++            {
++                v[index] = context.GetV(index);
++            }
++
++            SavedContext saved = new(
++                x,
++                v,
++                context.Pstate,
++                (uint)context.Fpsr,
++                (uint)context.Fpcr,
++                context.TpidrEl0,
++                context.TpidrroEl0,
++                resumeAddress);
++
++            return saved;
++        }
++
++        private static string CaptureConsumerCall(ExecutionContext context, IMemoryManager memory, ulong address)
++        {
++            ulong[] x = new ulong[31];
++            V128[] v = new V128[32];
++
++            for (int index = 0; index < x.Length; index++)
++            {
++                x[index] = context.GetX(index);
++            }
++
++            for (int index = 0; index < v.Length; index++)
++            {
++                v[index] = context.GetV(index);
++            }
++
++            SavedConsumerCall saved = new(x, v);
++
++            lock (Lock)
++            {
++                _savedConsumerCall = saved;
++                _hasSavedConsumerCall = true;
++            }
++
++            SaveConsumerFrame(x);
++            DumpConsumerObjects(memory, address, x);
++
++            if (!TraceConsumerRegisters)
++            {
++                return "capture";
++            }
++
++            return string.Create(
++                CultureInfo.InvariantCulture,
++                $"capture x0={ToHex(x[0])} x1={ToHex(x[1])} x2={ToHex(x[2])} x19={ToHex(x[19])} x20={ToHex(x[20])} x21={ToHex(x[21])} x22={ToHex(x[22])} x23={ToHex(x[23])} x24={ToHex(x[24])} x25={ToHex(x[25])} x29={ToHex(x[29])} x30={ToHex(x[30])}");
++        }
++
++        private static string FormatRequestRegisters(ExecutionContext context)
++        {
++            return string.Create(
++                CultureInfo.InvariantCulture,
++                $"x0={ToHex(context.GetX(0))} x1={ToHex(context.GetX(1))} x2={ToHex(context.GetX(2))} x3={ToHex(context.GetX(3))} x4={ToHex(context.GetX(4))} x5={ToHex(context.GetX(5))} x6={ToHex(context.GetX(6))} x7={ToHex(context.GetX(7))} x8={ToHex(context.GetX(8))} x9={ToHex(context.GetX(9))} x10={ToHex(context.GetX(10))} x11={ToHex(context.GetX(11))} x12={ToHex(context.GetX(12))} x13={ToHex(context.GetX(13))} x14={ToHex(context.GetX(14))} x15={ToHex(context.GetX(15))} x19={ToHex(context.GetX(19))} x20={ToHex(context.GetX(20))} x21={ToHex(context.GetX(21))} x22={ToHex(context.GetX(22))} x23={ToHex(context.GetX(23))} x24={ToHex(context.GetX(24))} x25={ToHex(context.GetX(25))} x29={ToHex(context.GetX(29))} x30={ToHex(context.GetX(30))} sp={ToHex(context.GetX(31))}");
++        }
++
++        private static void TraceContext(ExecutionContext context, IMemoryManager memory, ulong address)
++        {
++            lock (Lock)
++            {
++                if (ContextTraceOnce && ContextTraceSeen.Contains(address))
++                {
++                    return;
++                }
++
++                ContextTraceSeen.Add(address);
++            }
++
++            RequestProbe probe = ProbeRequestObject(memory);
++            DumpContextObjects(context, memory, address);
++            Trace(memory, address, "context", FormatRequestRegisters(context), probe.RequestObject, 0, probe);
++        }
++
++        private static void DumpContextObjects(ExecutionContext context, IMemoryManager memory, ulong address)
++        {
++            if (string.IsNullOrWhiteSpace(ContextDumpDir) || ContextDumpBytes <= 0 || ContextDumpRegisters.Length == 0)
++            {
++                return;
++            }
++
++            int dumpIndex;
++            lock (Lock)
++            {
++                dumpIndex = _contextDumpCount++;
++            }
++
++            try
++            {
++                Directory.CreateDirectory(ContextDumpDir);
++                string prefix = string.Create(
++                    CultureInfo.InvariantCulture,
++                    $"context-{dumpIndex:000000}-pc-{address:x}");
++                File.WriteAllText(Path.Combine(ContextDumpDir, prefix + ".txt"), FormatRequestRegisters(context));
++
++                foreach (int register in ContextDumpRegisters)
++                {
++                    if ((uint)register > 31)
++                    {
++                        continue;
++                    }
++
++                    ulong pointer = context.GetX(register);
++                    if (pointer < 0x10000)
++                    {
++                        continue;
++                    }
++
++                    byte[] data = new byte[ContextDumpBytes];
++                    try
++                    {
++                        for (int index = 0; index < data.Length; index++)
++                        {
++                            data[index] = memory.Read<byte>(pointer + (ulong)index);
++                        }
++                    }
++                    catch
++                    {
++                        continue;
++                    }
++
++                    string fileName = string.Create(
++                        CultureInfo.InvariantCulture,
++                        $"{prefix}-x{register:00}-{pointer:x}.bin");
++                    File.WriteAllBytes(Path.Combine(ContextDumpDir, fileName), data);
++                }
++            }
++            catch
++            {
++            }
++        }
++
++        private static void DumpConsumerObjects(IMemoryManager memory, ulong address, ulong[] x)
++        {
++            if (string.IsNullOrWhiteSpace(ConsumerDumpDir) || ConsumerDumpBytes <= 0 || ConsumerDumpRegisters.Length == 0)
++            {
++                return;
++            }
++
++            int dumpIndex;
++            lock (Lock)
++            {
++                dumpIndex = _consumerDumpCount++;
++            }
++
++            try
++            {
++                Directory.CreateDirectory(ConsumerDumpDir);
++                foreach (int register in ConsumerDumpRegisters)
++                {
++                    if ((uint)register >= x.Length)
++                    {
++                        continue;
++                    }
++
++                    ulong pointer = x[register];
++                    if (pointer == 0)
++                    {
++                        continue;
++                    }
++
++                    byte[] data = new byte[ConsumerDumpBytes];
++                    for (int index = 0; index < data.Length; index++)
++                    {
++                        data[index] = memory.Read<byte>(pointer + (ulong)index);
++                    }
++
++                    string fileName = string.Create(
++                        CultureInfo.InvariantCulture,
++                        $"consumer-{dumpIndex:000000}-pc-{address:x}-x{register:00}-{pointer:x}.bin");
++                    File.WriteAllBytes(Path.Combine(ConsumerDumpDir, fileName), data);
++                }
++            }
++            catch
++            {
++            }
++        }
++
++        private static void DumpRequestState(IMemoryManager memory, ulong address, RequestProbe probe, string phase)
++        {
++            if (string.IsNullOrWhiteSpace(RequestDumpDir) || RequestDumpBytes <= 0)
++            {
++                return;
++            }
++
++            int dumpIndex;
++            lock (Lock)
++            {
++                if (RequestDumpOnce && AlreadyDumpedPhase(phase))
++                {
++                    return;
++                }
++
++                MarkDumpedPhase(phase);
++                dumpIndex = _requestDumpCount++;
++            }
++
++            try
++            {
++                Directory.CreateDirectory(RequestDumpDir);
++                string prefix = string.Create(
++                    CultureInfo.InvariantCulture,
++                    $"request-{dumpIndex:000000}-{phase}-pc-{address:x}");
++
++                using StreamWriter manifest = File.CreateText(Path.Combine(RequestDumpDir, prefix + ".txt"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"pc={ToHex(address)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"manager_slot={ToHex(probe.ManagerSlot)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"manager_root={ToHex(probe.ManagerRoot)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"manager_base={ToHex(probe.ManagerBase)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"global_object={ToHex(probe.GlobalObject)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"captured_object={ToHex(probe.CapturedObject)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"captured_wrapper={ToHex(probe.CapturedWrapper)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"request_object={ToHex(probe.RequestObject)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"voice_context={ToHex(probe.VoiceContext)}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"ready_flag={probe.ReadyFlag}"));
++                manifest.WriteLine(string.Create(CultureInfo.InvariantCulture, $"text_length={probe.TextLength}"));
++
++                DumpMemoryRange(memory, probe.ManagerSlot, Path.Combine(RequestDumpDir, prefix + "-manager-slot.bin"));
++                DumpMemoryRange(memory, probe.ManagerRoot, Path.Combine(RequestDumpDir, prefix + "-manager-root.bin"));
++                DumpMemoryRange(memory, probe.ManagerBase, Path.Combine(RequestDumpDir, prefix + "-manager-base.bin"));
++                DumpMemoryRange(memory, probe.GlobalObject, Path.Combine(RequestDumpDir, prefix + "-global-object.bin"));
++                DumpMemoryRange(memory, probe.CapturedObject, Path.Combine(RequestDumpDir, prefix + "-captured-object.bin"));
++                DumpMemoryRange(memory, probe.CapturedWrapper, Path.Combine(RequestDumpDir, prefix + "-captured-wrapper.bin"));
++                DumpMemoryRange(memory, probe.RequestObject, Path.Combine(RequestDumpDir, prefix + "-request-object.bin"));
++                DumpMemoryRange(memory, probe.VoiceContext, Path.Combine(RequestDumpDir, prefix + "-voice-context.bin"));
++            }
++            catch
++            {
++            }
++        }
++
++        private static bool AlreadyDumpedPhase(string phase)
++        {
++            return string.Equals(phase, "dispatch", StringComparison.OrdinalIgnoreCase)
++                ? _dumpedRequestDispatch
++                : _dumpedRequestReady;
++        }
++
++        private static void MarkDumpedPhase(string phase)
++        {
++            if (string.Equals(phase, "dispatch", StringComparison.OrdinalIgnoreCase))
++            {
++                _dumpedRequestDispatch = true;
++                return;
++            }
++
++            _dumpedRequestReady = true;
++        }
++
++        private static void DumpMemoryRange(IMemoryManager memory, ulong pointer, string path)
++        {
++            if (pointer == 0)
++            {
++                return;
++            }
++
++            byte[] data = new byte[RequestDumpBytes];
++            for (int index = 0; index < data.Length; index++)
++            {
++                data[index] = memory.Read<byte>(pointer + (ulong)index);
++            }
++
++            File.WriteAllBytes(path, data);
++        }
++
++        private static bool TryKickConsumer(ExecutionContext context, IMemoryManager memory, ulong address, ulong ttsObject, RequestProbe probe, ulong resumeAddress, string reason, out ulong consumerAddress)
++        {
++            consumerAddress = 0;
++            ApplyMemoryPatches(memory, address, reason, ttsObject, probe);
++            SavedConsumerCall saved;
++            lock (Lock)
++            {
++                if (!CanKickConsumerNow())
++                {
++                    return false;
++                }
++
++                saved = _savedConsumerCall;
++                _consumerKickCount++;
++                _lastConsumerKickAt = DateTime.UtcNow;
++            }
++
++            SaveContext(context, resumeAddress);
++            for (int index = 0; index < 29; index++)
++            {
++                context.SetX(index, saved.X[index]);
++            }
++
++            for (int index = 0; index < saved.V.Length; index++)
++            {
++                context.SetV(index, saved.V[index]);
++            }
++
++            context.SetX(30, TrampolineReturnAddress);
++            consumerAddress = ConsumerKickAddress;
++            Trace(memory, address, "consumer", reason, ttsObject, 0, probe);
++            return true;
++        }
++
++        private static void ApplyMemoryPatches(IMemoryManager memory, ulong address, string phase, ulong ttsObject, RequestProbe probe)
++        {
++            if (string.IsNullOrWhiteSpace(MemoryPatchFile))
++            {
++                return;
++            }
++
++            lock (Lock)
++            {
++                if (MemoryPatchOnce && _memoryPatchApplied)
++                {
++                    return;
++                }
++
++                _memoryPatchApplied = true;
++            }
++
++            try
++            {
++                int patches = 0;
++                foreach (string rawLine in File.ReadAllLines(MemoryPatchFile))
++                {
++                    string line = rawLine.Split('#', 2)[0].Trim();
++                    if (string.IsNullOrWhiteSpace(line))
++                    {
++                        continue;
++                    }
++
++                    string[] parts = line.Split(['=', ' ', '\t'], 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
++                    if (parts.Length != 2)
++                    {
++                        continue;
++                    }
++
++                    ulong target = ParseAddress(parts[0]);
++                    if (target == 0 || !File.Exists(parts[1]))
++                    {
++                        continue;
++                    }
++
++                    byte[] data = File.ReadAllBytes(parts[1]);
++                    for (int index = 0; index < data.Length; index++)
++                    {
++                        memory.Write<byte>(target + (ulong)index, data[index]);
++                    }
++
++                    patches++;
++                }
++
++                Trace(memory, address, "memory-patch", $"phase={phase} patches={patches}", ttsObject, 0, probe);
++            }
++            catch (Exception exception)
++            {
++                Trace(memory, address, "memory-patch", "failed " + exception.GetType().Name, ttsObject, 0, probe);
++            }
++        }
++
++        private static void LoadConsumerFrame()
++        {
++            if (!ConsumerFrameLoad || string.IsNullOrWhiteSpace(ConsumerFrameFile))
++            {
++                return;
++            }
++
++            try
++            {
++                if (!File.Exists(ConsumerFrameFile))
++                {
++                    return;
++                }
++
++                string content = File.ReadAllText(ConsumerFrameFile);
++                if (!TryParseConsumerFrame(content, out ulong[] x))
++                {
++                    return;
++                }
++
++                V128[] v = new V128[32];
++                for (int index = 0; index < v.Length; index++)
++                {
++                    v[index] = V128.Zero;
++                }
++
++                _savedConsumerCall = new SavedConsumerCall(x, v);
++                _hasSavedConsumerCall = true;
++            }
++            catch
++            {
++            }
++        }
++
++        private static void SaveConsumerFrame(ulong[] x)
++        {
++            if (!ConsumerFrameSave || string.IsNullOrWhiteSpace(ConsumerFrameFile))
++            {
++                return;
++            }
++
++            try
++            {
++                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(ConsumerFrameFile)) ?? ".");
++                File.WriteAllText(ConsumerFrameFile, FormatConsumerFrame(x));
++            }
++            catch
++            {
++            }
++        }
++
++        private static string FormatConsumerFrame(ulong[] x)
++        {
++            StringBuilder builder = new();
++            for (int index = 0; index < Math.Min(29, x.Length); index++)
++            {
++                if (index != 0)
++                {
++                    builder.Append(' ');
++                }
++
++                builder.Append('x');
++                builder.Append(index.ToString(CultureInfo.InvariantCulture));
++                builder.Append('=');
++                builder.Append(ToHex(x[index]));
++            }
++
++            builder.AppendLine();
++            return builder.ToString();
++        }
++
++        private static bool TryParseConsumerFrame(string content, out ulong[] x)
++        {
++            x = new ulong[31];
++            bool foundAny = false;
++            foreach (string part in content.Split([' ', '\n', '\r', '\t', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
++            {
++                int equals = part.IndexOf('=');
++                if (equals <= 1 || part[0] != 'x')
++                {
++                    continue;
++                }
++
++                if (!int.TryParse(part[1..equals], NumberStyles.Integer, CultureInfo.InvariantCulture, out int register) || register < 0 || register >= 29)
++                {
++                    continue;
++                }
++
++                ulong value = ParseAddress(part[(equals + 1)..]);
++                x[register] = value;
++                foundAny = true;
++            }
++
++            return foundAny;
++        }
++
++        private static bool TryRestoreAfterDispatch(ulong address, ExecutionContext context, IMemoryManager memory, out ulong resumeAddress)
++        {
++            resumeAddress = 0;
++            SavedContext saved;
++            lock (Lock)
++            {
++                if (!_hasSavedContext || !Matches(address, [TrampolineReturnAddress]))
++                {
++                    return false;
++                }
++
++                saved = _savedContext;
++                _hasSavedContext = false;
++            }
++
++            RestoreSavedContext(context, saved);
++
++            if (_pcmDumpRemainingBytes > 0 && _consumerKickAfterDispatchCount < ConsumerKickAfterDispatchMax)
++            {
++                RequestProbe probe = ProbeRequestObject(memory);
++                if (TryKickConsumer(context, memory, address, probe.RequestObject, probe, saved.ResumeAddress, "kick-after-dispatch", out resumeAddress))
++                {
++                    _consumerKickAfterDispatchCount++;
++                    return true;
++                }
++            }
++
++            resumeAddress = saved.ResumeAddress;
++            Trace(memory, address, "resume", "context-restored", 0, 0);
++            return resumeAddress != 0;
++        }
++
++        private static bool TryRestoreRequestContext(ExecutionContext context, IMemoryManager memory, ulong address, RequestProbe probe)
++        {
++            SavedContext saved;
++            ulong savedAddress;
++            lock (Lock)
++            {
++                if (!_hasSavedRequestContext)
++                {
++                    Trace(memory, address, "request-context", "missing", probe.RequestObject, 0, probe);
++                    return false;
++                }
++
++                saved = _savedRequestContext;
++                savedAddress = _savedRequestContextAddress;
++            }
++
++            RestoreSavedContext(context, saved);
++            Trace(memory, address, "request-context", $"replay saved_at={ToHex(savedAddress)}", probe.RequestObject, 0, probe);
++            return true;
++        }
++
++        private static bool TryRestoreDispatchContext(ExecutionContext context, IMemoryManager memory, ulong address, RequestProbe probe)
++        {
++            SavedContext saved;
++            ulong savedAddress;
++            lock (Lock)
++            {
++                if (!_hasSavedDispatchContext)
++                {
++                    CaptureDispatchContext(context, address);
++                    Trace(memory, address, "dispatch-context", "captured-initial", probe.RequestObject, 0, probe);
++                    return false;
++                }
++
++                saved = _savedDispatchContext;
++                savedAddress = _savedDispatchContextAddress;
++            }
++
++            RestoreSavedContext(context, saved);
++            Trace(memory, address, "dispatch-context", $"replay saved_at={ToHex(savedAddress)}", probe.RequestObject, 0, probe);
++            return true;
++        }
++
++        private static void RestoreSavedContext(ExecutionContext context, SavedContext saved)
++        {
++            for (int index = 0; index < saved.X.Length; index++)
++            {
++                context.SetX(index, saved.X[index]);
++            }
++
++            for (int index = 0; index < saved.V.Length; index++)
++            {
++                context.SetV(index, saved.V[index]);
++            }
++
++            context.Pstate = saved.Pstate;
++            context.Fpsr = (FPSR)saved.Fpsr;
++            context.Fpcr = (FPCR)saved.Fpcr;
++            context.TpidrEl0 = saved.TpidrEl0;
++            context.TpidrroEl0 = saved.TpidrroEl0;
++        }
++
++        private static void PrepareObject(IMemoryManager memory, ulong ttsObject, ReadOnlySpan<byte> text)
++        {
++            ulong textPointer = ttsObject + TextBufferOffset;
++            for (int index = 0; index < text.Length; index++)
++            {
++                memory.Write<byte>(textPointer + (ulong)index, text[index]);
++            }
++
++            memory.Write<byte>(textPointer + (ulong)text.Length, 0);
++            memory.Write<ulong>(ttsObject + TextPointerOffset, textPointer);
++            memory.Write<int>(ttsObject + TextLengthOffset, text.Length + 1);
++            memory.Write<byte>(ttsObject + ReadyFlagOffset, 1);
++            memory.Write<int>(ttsObject + AlternateTextFlagOffset, 0);
++        }
++
++        private static void DumpPcm(ExecutionContext context, IMemoryManager memory)
++        {
++            if (string.IsNullOrWhiteSpace(PcmDumpPath) || _dispatchCount == 0 || PcmDumpMaxBytes == 0)
++            {
++                return;
++            }
++
++            if ((uint)PcmPointerRegister >= 31 || (uint)PcmSizeRegister >= 31)
++            {
++                return;
++            }
++
++            lock (Lock)
++            {
++                if (_pcmDumpBytes >= PcmDumpMaxBytes || _pcmDumpRemainingBytes <= 0)
++                {
++                    return;
++                }
++
++                ulong pointer = context.GetX(PcmPointerRegister);
++                ulong requestedSize = context.GetX(PcmSizeRegister);
++                int totalRemaining = PcmDumpMaxBytes - _pcmDumpBytes;
++                int requestRemaining = Math.Min(_pcmDumpRemainingBytes, totalRemaining);
++                int size = (int)Math.Min(Math.Min(requestedSize, 0x20000UL), (ulong)requestRemaining);
++                if (pointer == 0 || size <= 0)
++                {
++                    return;
++                }
++
++                try
++                {
++                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(PcmDumpPath)) ?? ".");
++                    using FileStream stream = File.Open(PcmDumpPath, FileMode.Append, FileAccess.Write, FileShare.Read);
++                    for (int index = 0; index < size; index++)
++                    {
++                        stream.WriteByte(memory.Read<byte>(pointer + (ulong)index));
++                    }
++                    _pcmDumpBytes += size;
++                    _pcmDumpRemainingBytes = Math.Max(0, _pcmDumpRemainingBytes - size);
++                    TracePcm(context, memory, pointer, requestedSize, size);
++                }
++                catch
++                {
++                }
++            }
++        }
++
++        private static int EstimatePcmBytes(int textByteLength)
++        {
++            float seconds = Math.Clamp(textByteLength / PcmCaptureTextBytesPerSecond, PcmMinSeconds, PcmMaxSeconds);
++            int bytes = (int)Math.Ceiling(PcmSampleRate * 2.0 * seconds);
++            return bytes % 2 == 0 ? bytes : bytes + 1;
++        }
++
++        private static ulong ResolveRequestObject(IMemoryManager memory)
++        {
++            ulong globalObject = ResolveGlobalRequestObject(memory);
++            if (globalObject != 0 && IsRequestObjectReady(memory, globalObject))
++            {
++                return globalObject;
++            }
++
++            return _ttsObject != 0 && IsRequestObjectReady(memory, _ttsObject) ? _ttsObject : 0;
++        }
++
++        private static ulong ResolveGlobalRequestObject(IMemoryManager memory)
++        {
++            if (ManagerGlobalAddress == 0)
++            {
++                return 0;
++            }
++
++            try
++            {
++                ulong managerSlot = memory.Read<ulong>(ManagerGlobalAddress);
++                if (managerSlot == 0)
++                {
++                    return 0;
++                }
++
++                ulong managerRoot = memory.Read<ulong>(managerSlot);
++                if (managerRoot == 0)
++                {
++                    return 0;
++                }
++
++                ulong managerBase = memory.Read<ulong>(managerRoot + ManagerInnerOffset);
++                return managerBase == 0 ? 0 : managerBase + RequestObjectOffset;
++            }
++            catch
++            {
++                return 0;
++            }
++        }
++
++        private static bool IsRequestObjectReady(IMemoryManager memory, ulong ttsObject)
++        {
++            try
++            {
++                return memory.Read<ulong>(ttsObject + VoiceContextOffset) != 0;
++            }
++            catch
++            {
++                return false;
++            }
++        }
++
++        private readonly struct SavedContext
++        {
++            public SavedContext(ulong[] x, V128[] v, uint pstate, uint fpsr, uint fpcr, long tpidrEl0, long tpidrroEl0, ulong resumeAddress)
++            {
++                X = x;
++                V = v;
++                Pstate = pstate;
++                Fpsr = fpsr;
++                Fpcr = fpcr;
++                TpidrEl0 = tpidrEl0;
++                TpidrroEl0 = tpidrroEl0;
++                ResumeAddress = resumeAddress;
++            }
++
++            public ulong[] X { get; }
++            public V128[] V { get; }
++            public uint Pstate { get; }
++            public uint Fpsr { get; }
++            public uint Fpcr { get; }
++            public long TpidrEl0 { get; }
++            public long TpidrroEl0 { get; }
++            public ulong ResumeAddress { get; }
++        }
++
++        private readonly struct RequestProbe
++        {
++            public RequestProbe(ulong managerSlot, ulong managerRoot, ulong managerBase, ulong globalObject, ulong capturedObject, ulong capturedWrapper, ulong requestObject, ulong voiceContext, byte readyFlag, int textLength, string reason, bool ready)
++            {
++                ManagerSlot = managerSlot;
++                ManagerRoot = managerRoot;
++                ManagerBase = managerBase;
++                GlobalObject = globalObject;
++                CapturedObject = capturedObject;
++                CapturedWrapper = capturedWrapper;
++                RequestObject = requestObject;
++                VoiceContext = voiceContext;
++                ReadyFlag = readyFlag;
++                TextLength = textLength;
++                Reason = reason;
++                Ready = ready;
++            }
++
++            public ulong ManagerSlot { get; }
++            public ulong ManagerRoot { get; }
++            public ulong ManagerBase { get; }
++            public ulong GlobalObject { get; }
++            public ulong CapturedObject { get; }
++            public ulong CapturedWrapper { get; }
++            public ulong RequestObject { get; }
++            public ulong VoiceContext { get; }
++            public byte ReadyFlag { get; }
++            public int TextLength { get; }
++            public string Reason { get; }
++            public bool Ready { get; }
++        }
++
++        private readonly struct SavedConsumerCall
++        {
++            public SavedConsumerCall(ulong[] x, V128[] v)
++            {
++                X = x;
++                V = v;
++            }
++
++            public ulong[] X { get; }
++            public V128[] V { get; }
++        }
++
++        private static RequestProbe ProbeRequestObject(IMemoryManager memory)
++        {
++            ulong managerSlot = 0;
++            ulong managerRoot = 0;
++            ulong managerBase = 0;
++            ulong globalObject = 0;
++            ulong wrapperRequestObject = 0;
++
++            try
++            {
++                if (DispatchWrapper && _wrapperObject != 0)
++                {
++                    wrapperRequestObject = memory.Read<ulong>(_wrapperObject);
++                }
++
++                if (ManagerGlobalAddress != 0)
++                {
++                    managerSlot = memory.Read<ulong>(ManagerGlobalAddress);
++                    if (managerSlot != 0)
++                    {
++                        managerRoot = memory.Read<ulong>(managerSlot);
++                        if (managerRoot != 0)
++                        {
++                            managerBase = memory.Read<ulong>(managerRoot + ManagerInnerOffset);
++                            if (managerBase != 0)
++                            {
++                                globalObject = managerBase + RequestObjectOffset;
++                            }
++                        }
++                    }
++                }
++            }
++            catch
++            {
++                return new RequestProbe(managerSlot, managerRoot, managerBase, globalObject, _ttsObject, _wrapperObject, 0, 0, 0, 0, "manager-read-failed", false);
++            }
++
++            if (TryProbeCandidate(memory, wrapperRequestObject, managerSlot, managerRoot, managerBase, globalObject, out RequestProbe wrapperProbe))
++            {
++                return wrapperProbe;
++            }
++
++            if (TryProbeCandidate(memory, globalObject, managerSlot, managerRoot, managerBase, globalObject, out RequestProbe globalProbe))
++            {
++                return globalProbe;
++            }
++
++            if (TryProbeCandidate(memory, _ttsObject, managerSlot, managerRoot, managerBase, globalObject, out RequestProbe capturedProbe))
++            {
++                return capturedProbe;
++            }
++
++            string reason = globalObject == 0 && _ttsObject == 0 ? "no-object" : "object-not-ready";
++            return new RequestProbe(managerSlot, managerRoot, managerBase, globalObject, _ttsObject, _wrapperObject, 0, 0, 0, 0, reason, false);
++        }
++
++        private static bool TryProbeCandidate(IMemoryManager memory, ulong candidate, ulong managerSlot, ulong managerRoot, ulong managerBase, ulong globalObject, out RequestProbe probe)
++        {
++            probe = default;
++            if (candidate == 0)
++            {
++                return false;
++            }
++
++            try
++            {
++                ulong voiceContext = memory.Read<ulong>(candidate + VoiceContextOffset);
++                byte readyFlag = memory.Read<byte>(candidate + ReadyFlagOffset);
++                int textLength = memory.Read<int>(candidate + TextLengthOffset);
++                bool ready = voiceContext != 0;
++                probe = new RequestProbe(managerSlot, managerRoot, managerBase, globalObject, _ttsObject, _wrapperObject, candidate, voiceContext, readyFlag, textLength, ready ? "ready" : "no-voice-context", ready);
++                return true;
++            }
++            catch
++            {
++                probe = new RequestProbe(managerSlot, managerRoot, managerBase, globalObject, _ttsObject, _wrapperObject, candidate, 0, 0, 0, "candidate-read-failed", false);
++                return true;
++            }
++        }
++
++        private static byte[] ReadPendingText()
++        {
++            if (!string.IsNullOrWhiteSpace(TextFile))
++            {
++                try
++                {
++                    FileInfo info = new(TextFile);
++                    if (info.Exists && info.LastWriteTimeUtc != _lastFileMtime)
++                    {
++                        _lastFileMtime = info.LastWriteTimeUtc;
++                        _lastFileText = File.ReadAllText(TextFile).Replace('\n', ' ').Trim();
++                        _fileTextDispatchesRemaining = string.IsNullOrWhiteSpace(_lastFileText) ? 0 : TextDispatchRepeats;
++                    }
++                }
++                catch
++                {
++                    return [];
++                }
++
++                return _fileTextDispatchesRemaining > 0 ? EncodeText(_lastFileText) : [];
++            }
++
++            return _staticTextDispatchesRemaining > 0 ? StaticText : [];
++        }
++
++        private static void MarkTextDispatched()
++        {
++            if (!string.IsNullOrWhiteSpace(TextFile))
++            {
++                _fileTextDispatchesRemaining = Math.Max(0, _fileTextDispatchesRemaining - 1);
++                return;
++            }
++
++            _staticTextDispatchesRemaining = Math.Max(0, _staticTextDispatchesRemaining - 1);
++        }
++
++        private static byte[] EncodeText(string value)
++        {
++            if (string.IsNullOrWhiteSpace(value))
++            {
++                return [];
++            }
++
++            return Encoding.UTF8.GetBytes(value.Trim()).Take(MaxBytes).ToArray();
++        }
++
++        private static bool Matches(ulong address, ulong[] targets)
++        {
++            foreach (ulong target in targets)
++            {
++                if (address == target)
++                {
++                    return true;
++                }
++
++                if (BaseAddress != 0 && address >= BaseAddress && address - BaseAddress == target)
++                {
++                    return true;
++                }
++
++                if (BaseAddress != 0 && target < BaseAddress && address == BaseAddress + target)
++                {
++                    return true;
++                }
++            }
++
++            return false;
++        }
++
++        private static void Trace(IMemoryManager memory, ulong address, string eventName, string reason, ulong requestObject, int textLength, RequestProbe? probe = null)
++        {
++            if (string.IsNullOrWhiteSpace(TracePath) || TraceMaxEvents == 0 || _traceEvents >= TraceMaxEvents)
++            {
++                return;
++            }
++
++            try
++            {
++                RequestProbe state = probe ?? ProbeRequestObject(memory);
++                using StreamWriter writer = File.AppendText(TracePath);
++                if (!_traceHeaderWritten)
++                {
++                    writer.WriteLine("utc,address,event,reason,dispatch_count,text_length,request_address,return_address,dispatch_wrapper,manager_slot,manager_root,manager_base,global_object,captured_object,captured_wrapper,request_object,voice_context,ready_flag,current_text_length,text_sha256,text_preview");
++                    _traceHeaderWritten = true;
++                }
++
++                int traceTextLength = textLength > 0 ? Math.Min(textLength + 1, MaxBytes + 1) : state.TextLength;
++                (string textHash, string textPreview) = ReadTraceText(memory, requestObject != 0 ? requestObject : state.RequestObject, traceTextLength);
++                writer.Write(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
++                writer.Write(',');
++                writer.Write(ToHex(address));
++                writer.Write(',');
++                writer.Write(eventName);
++                writer.Write(',');
++                writer.Write(reason);
++                writer.Write(',');
++                writer.Write(_dispatchCount.ToString(CultureInfo.InvariantCulture));
++                writer.Write(',');
++                writer.Write(textLength.ToString(CultureInfo.InvariantCulture));
++                writer.Write(',');
++                writer.Write(ToHex(RequestAddress));
++                writer.Write(',');
++                writer.Write(ToHex(ReturnAddress));
++                writer.Write(',');
++                writer.Write(DispatchWrapper ? "1" : "0");
++                writer.Write(',');
++                writer.Write(ToHex(state.ManagerSlot));
++                writer.Write(',');
++                writer.Write(ToHex(state.ManagerRoot));
++                writer.Write(',');
++                writer.Write(ToHex(state.ManagerBase));
++                writer.Write(',');
++                writer.Write(ToHex(state.GlobalObject));
++                writer.Write(',');
++                writer.Write(ToHex(state.CapturedObject));
++                writer.Write(',');
++                writer.Write(ToHex(state.CapturedWrapper));
++                writer.Write(',');
++                writer.Write(ToHex(requestObject != 0 ? requestObject : state.RequestObject));
++                writer.Write(',');
++                writer.Write(ToHex(state.VoiceContext));
++                writer.Write(',');
++                writer.Write(state.ReadyFlag.ToString(CultureInfo.InvariantCulture));
++                writer.Write(',');
++                writer.Write(state.TextLength.ToString(CultureInfo.InvariantCulture));
++                writer.Write(',');
++                writer.Write(textHash);
++                writer.Write(',');
++                writer.WriteLine(textPreview);
++                _traceEvents++;
++            }
++            catch
++            {
++            }
++        }
++
++        private static (string Hash, string Preview) ReadTraceText(IMemoryManager memory, ulong requestObject, int currentTextLength)
++        {
++            if (requestObject == 0 || currentTextLength <= 0)
++            {
++                return ("", "");
++            }
++
++            int length = Math.Clamp(currentTextLength, 0, MaxBytes + 1);
++            byte[] bytes = new byte[length];
++            try
++            {
++                ulong textPointer = memory.Read<ulong>(requestObject + TextPointerOffset);
++                if (textPointer == 0)
++                {
++                    textPointer = requestObject + TextBufferOffset;
++                }
++
++                for (int index = 0; index < length; index++)
++                {
++                    byte value = memory.Read<byte>(textPointer + (ulong)index);
++                    if (value == 0)
++                    {
++                        length = index;
++                        break;
++                    }
++                    bytes[index] = value;
++                }
++            }
++            catch
++            {
++                return ("", "");
++            }
++
++            if (length == 0)
++            {
++                return ("", "");
++            }
++
++            byte[] textBytes = bytes.Take(length).ToArray();
++            string hash = Convert.ToHexString(SHA256.HashData(textBytes)).ToLowerInvariant()[..16];
++            string preview = Encoding.UTF8.GetString(textBytes)
++                .Replace(',', ' ')
++                .Replace('\n', ' ')
++                .Replace('\r', ' ')
++                .Trim();
++            return (hash, preview);
++        }
++
++        private static void TracePcm(ExecutionContext context, IMemoryManager memory, ulong pointer, ulong requestedSize, int writtenSize)
++        {
++            if (string.IsNullOrWhiteSpace(TracePath) || TraceMaxEvents == 0 || _traceEvents >= TraceMaxEvents)
++            {
++                return;
++            }
++
++            try
++            {
++                ulong frame0 = context.GetX(29);
++                ulong frame0Return = ReadFrameReturnAddress(memory, frame0);
++                ulong frame1 = frame0 == 0 ? 0 : ReadPointer(memory, frame0);
++                ulong frame1Return = ReadFrameReturnAddress(memory, frame1);
++                ulong frame2 = frame1 == 0 ? 0 : ReadPointer(memory, frame1);
++                ulong frame2Return = ReadFrameReturnAddress(memory, frame2);
++                using StreamWriter writer = File.AppendText(TracePath);
++                writer.Write(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
++                writer.Write(',');
++                writer.Write(ToHex(PcmDumpAddresses.Length == 0 ? 0 : PcmDumpAddresses[0]));
++                writer.Write(",pcm,dump,");
++                writer.Write(_dispatchCount.ToString(CultureInfo.InvariantCulture));
++                writer.Write(",0,");
++                writer.Write(ToHex(RequestAddress));
++                writer.Write(',');
++                writer.Write(ToHex(ReturnAddress));
++                writer.Write(',');
++                writer.Write(DispatchWrapper ? "1" : "0");
++                writer.Write(",,,,,,,,,,");
++                writer.Write(" pcm_pointer=");
++                writer.Write(ToHex(pointer));
++                writer.Write(" requested=");
++                writer.Write(requestedSize.ToString(CultureInfo.InvariantCulture));
++                writer.Write(" written=");
++                writer.Write(writtenSize.ToString(CultureInfo.InvariantCulture));
++                writer.Write(" total=");
++                writer.Write(_pcmDumpBytes.ToString(CultureInfo.InvariantCulture));
++                writer.Write(" remaining=");
++                writer.Write(_pcmDumpRemainingBytes.ToString(CultureInfo.InvariantCulture));
++                writer.Write(" x29=");
++                writer.Write(ToHex(frame0));
++                writer.Write(" lr0=");
++                writer.Write(ToHex(frame0Return));
++                writer.Write(" fp1=");
++                writer.Write(ToHex(frame1));
++                writer.Write(" lr1=");
++                writer.Write(ToHex(frame1Return));
++                writer.Write(" fp2=");
++                writer.Write(ToHex(frame2));
++                writer.Write(" lr2=");
++                writer.WriteLine(ToHex(frame2Return));
++                _traceEvents++;
++            }
++            catch
++            {
++            }
++        }
++
++        private static ulong ReadFrameReturnAddress(IMemoryManager memory, ulong framePointer)
++        {
++            return framePointer == 0 ? 0 : ReadPointer(memory, framePointer + 8);
++        }
++
++        private static ulong ReadPointer(IMemoryManager memory, ulong address)
++        {
++            try
++            {
++                return address == 0 ? 0 : memory.Read<ulong>(address);
++            }
++            catch
++            {
++                return 0;
++            }
++        }
++
++        private static string ToHex(ulong value)
++        {
++            return value == 0 ? "0x0" : "0x" + value.ToString("x", CultureInfo.InvariantCulture);
++        }
++
++        private static ulong[] ParseTargets(string value)
++        {
++            if (string.IsNullOrWhiteSpace(value))
++            {
++                return [];
++            }
++
++            return value
++                .Split([',', ';', ' ', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
++                .Select(ParseAddress)
++                .Where(address => address != 0)
++                .Distinct()
++                .ToArray();
++        }
++
++        private static int[] ParseRegisterList(string value)
++        {
++            if (string.IsNullOrWhiteSpace(value))
++            {
++                return [];
++            }
++
++            return value
++                .Split([',', ';', ' ', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
++                .Select(item => item.StartsWith("x", StringComparison.OrdinalIgnoreCase) ? item[1..] : item)
++                .Select(item => int.TryParse(item, NumberStyles.Integer, CultureInfo.InvariantCulture, out int register) ? register : -1)
++                .Where(register => register is >= 0 and <= 31)
++                .Distinct()
++                .ToArray();
++        }
++
++        private static ulong NormalizeAddress(ulong address)
++        {
++            return BaseAddress != 0 && address != 0 && address < BaseAddress ? BaseAddress + address : address;
++        }
++
++        private static ulong ParseAddress(string value)
++        {
++            if (string.IsNullOrWhiteSpace(value))
++            {
++                return 0;
++            }
++
++            value = value.Trim();
++            if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
++            {
++                return ulong.TryParse(value[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ulong parsed) ? parsed : 0;
++            }
++
++            return ulong.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong decimalParsed)
++                ? decimalParsed
++                : ulong.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ulong hexParsed)
++                    ? hexParsed
++                    : 0;
++        }
++
++        private static int ReadInt(string name, int fallback)
++        {
++            return int.TryParse(Environment.GetEnvironmentVariable(name), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : fallback;
++        }
++
++        private static float ReadFloat(string name, float fallback)
++        {
++            return float.TryParse(Environment.GetEnvironmentVariable(name), NumberStyles.Float, CultureInfo.InvariantCulture, out float value) ? value : fallback;
++        }
++
++        private static bool ReadBool(string name)
++        {
++            return bool.TryParse(Environment.GetEnvironmentVariable(name), out bool value) && value;
++        }
++
++        private static bool ReadBoolDefault(string name, bool fallback)
++        {
++            string value = Environment.GetEnvironmentVariable(name);
++            return string.IsNullOrWhiteSpace(value) ? fallback : bool.TryParse(value, out bool parsed) && parsed;
++        }
++    }
++}
 diff --git a/src/ARMeilleure/Translation/TtsmodachiBlockTrace.cs b/src/ARMeilleure/Translation/TtsmodachiBlockTrace.cs
 new file mode 100644
 index 0000000..dae615c
@@ -909,18 +2695,45 @@ diff --git a/src/Ryujinx.Audio/Renderer/Dsp/Command/AdpcmDataSourceCommandVersio
 index 6993ce0..f908cef 100644
 --- a/src/Ryujinx.Audio/Renderer/Dsp/Command/AdpcmDataSourceCommandVersion1.cs
 +++ b/src/Ryujinx.Audio/Renderer/Dsp/Command/AdpcmDataSourceCommandVersion1.cs
-@@ -25,0 +26,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+@@ -23,6 +23,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public float Pitch { get; private set; }
+ 
+         public WaveBuffer[] WaveBuffers { get; }
 +        public ulong[] WaveBufferCpuAddresses { get; }
 +        public ulong[] WaveBufferCpuSizes { get; }
-@@ -36,0 +39,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ 
+         public Memory<VoiceState> State { get; private set; }
+ 
+@@ -34,6 +36,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public AdpcmDataSourceCommandVersion1()
+         {
+             WaveBuffers = new WaveBuffer[Constants.VoiceWaveBufferCount];
 +            WaveBufferCpuAddresses = new ulong[Constants.VoiceWaveBufferCount];
 +            WaveBufferCpuSizes = new ulong[Constants.VoiceWaveBufferCount];
-@@ -53,0 +58,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         }
+ 
+         public AdpcmDataSourceCommandVersion1 Initialize(ref VoiceInfo serverInfo, Memory<VoiceState> state, ushort outputBufferIndex, int nodeId)
+@@ -51,6 +55,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+             {
+                 ref Server.Voice.WaveBuffer voiceWaveBuffer = ref waveBufferSpan[i];
+ 
 +                WaveBufferCpuAddresses[i] = voiceWaveBuffer.BufferAddressInfo.CpuAddress;
 +                WaveBufferCpuSizes[i] = voiceWaveBuffer.BufferAddressInfo.Size;
-@@ -67,0 +74 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+                 WaveBuffers[i] = voiceWaveBuffer.ToCommon(1);
+             }
+ 
+@@ -65,6 +71,7 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public void Process(CommandList context)
+         {
+             Span<float> outputBuffer = context.GetBuffer(OutputBufferIndex);
 +            VoiceState stateBefore = State.Span[0];
-@@ -81,0 +89,15 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ 
+             DataSourceHelper.WaveBufferInformation info = new()
+             {
+@@ -79,6 +86,21 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+             };
+ 
+             DataSourceHelper.ProcessWaveBuffers(context.MemoryManager, outputBuffer, ref info, WaveBuffers, ref State.Span[0], context.SampleRate, (int)context.SampleCount);
 +            TtsmodachiAudioTrace.MaybeTrace(
 +                nameof(AdpcmDataSourceCommandVersion1),
 +                NodeId,
@@ -936,22 +2749,52 @@ index 6993ce0..f908cef 100644
 +                WaveBufferCpuSizes,
 +                stateBefore,
 +                State.Span[0]);
+         }
+     }
+ }
 diff --git a/src/Ryujinx.Audio/Renderer/Dsp/Command/DataSourceVersion2Command.cs b/src/Ryujinx.Audio/Renderer/Dsp/Command/DataSourceVersion2Command.cs
 index 10723b3..6541b50 100644
 --- a/src/Ryujinx.Audio/Renderer/Dsp/Command/DataSourceVersion2Command.cs
 +++ b/src/Ryujinx.Audio/Renderer/Dsp/Command/DataSourceVersion2Command.cs
-@@ -25,0 +26,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+@@ -23,6 +23,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public float Pitch { get; private set; }
+ 
+         public WaveBuffer[] WaveBuffers { get; }
 +        public ulong[] WaveBufferCpuAddresses { get; }
 +        public ulong[] WaveBufferCpuSizes { get; }
-@@ -44,0 +47,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ 
+         public Memory<VoiceState> State { get; private set; }
+ 
+@@ -42,6 +44,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public DataSourceVersion2Command()
+         {
+             WaveBuffers = new WaveBuffer[Constants.VoiceWaveBufferCount];
 +            WaveBufferCpuAddresses = new ulong[Constants.VoiceWaveBufferCount];
 +            WaveBufferCpuSizes = new ulong[Constants.VoiceWaveBufferCount];
-@@ -66,0 +71,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         }
+ 
+         public DataSourceVersion2Command Initialize(ref VoiceInfo serverInfo, Memory<VoiceState> state, ushort outputBufferIndex, ushort channelIndex, int nodeId)
+@@ -64,6 +68,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+             {
+                 ref Server.Voice.WaveBuffer voiceWaveBuffer = ref waveBufferSpan[i];
+ 
 +                WaveBufferCpuAddresses[i] = voiceWaveBuffer.BufferAddressInfo.CpuAddress;
 +                WaveBufferCpuSizes[i] = voiceWaveBuffer.BufferAddressInfo.Size;
-@@ -95,0 +102 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+                 WaveBuffers[i] = voiceWaveBuffer.ToCommon(2);
+             }
+ 
+@@ -93,6 +99,7 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public void Process(CommandList context)
+         {
+             Span<float> outputBuffer = context.GetBuffer(OutputBufferIndex);
 +            VoiceState stateBefore = State.Span[0];
-@@ -110,0 +118,15 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ 
+             DataSourceHelper.WaveBufferInformation info = new()
+             {
+@@ -108,6 +115,21 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+             };
+ 
+             DataSourceHelper.ProcessWaveBuffers(context.MemoryManager, outputBuffer, ref info, WaveBuffers, ref State.Span[0], context.SampleRate, (int)context.SampleCount);
 +            TtsmodachiAudioTrace.MaybeTrace(
 +                nameof(DataSourceVersion2Command),
 +                NodeId,
@@ -967,16 +2810,32 @@ index 10723b3..6541b50 100644
 +                WaveBufferCpuSizes,
 +                stateBefore,
 +                State.Span[0]);
+         }
+     }
+ }
 diff --git a/src/Ryujinx.Audio/Renderer/Dsp/Command/DeviceSinkCommand.cs b/src/Ryujinx.Audio/Renderer/Dsp/Command/DeviceSinkCommand.cs
 index c70d186..1ecbd6f 100644
 --- a/src/Ryujinx.Audio/Renderer/Dsp/Command/DeviceSinkCommand.cs
 +++ b/src/Ryujinx.Audio/Renderer/Dsp/Command/DeviceSinkCommand.cs
-@@ -1,0 +2 @@ using Ryujinx.Audio.Integration;
+@@ -1,4 +1,5 @@
+ using Ryujinx.Audio.Integration;
 +using Ryujinx.Audio.Renderer.Dsp;
-@@ -11,0 +13,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ using Ryujinx.Audio.Renderer.Server.Sink;
+ using System;
+ using System.Buffers;
+@@ -9,6 +10,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ {
+     public class DeviceSinkCommand : ICommand
+     {
 +        private static readonly bool TtsmodachiMuteDeviceSink = ReadBool("RYUJINX_TTSMODACHI_MUTE_DEVICE_SINK");
 +
-@@ -107 +110,6 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public bool Enabled { get; set; }
+ 
+         public int NodeId { get; private set; }
+@@ -104,7 +107,12 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+                     }
+                 }
+ 
 -                device.AppendBuffer(outputBuffer.AsSpan(..((int)inputCount * SampleCount)), inputCount);
 +                ReadOnlySpan<short> renderedBuffer = outputBuffer.AsSpan(..((int)inputCount * SampleCount));
 +                TtsmodachiSinkCapture.MaybeCapture(device.GetSampleRate(), inputCount, renderedBuffer);
@@ -984,29 +2843,64 @@ index c70d186..1ecbd6f 100644
 +                {
 +                    device.AppendBuffer(renderedBuffer, inputCount);
 +                }
-@@ -116,0 +125,6 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+                 
+                 ArrayPool<short>.Shared.Return(outputBuffer);
+             }
+@@ -114,5 +122,11 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+                 throw new NotImplementedException();
+             }
+         }
 +
 +        private static bool ReadBool(string name)
 +        {
 +            string value = Environment.GetEnvironmentVariable(name);
 +            return value != null && (value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase) || value.Equals("yes", StringComparison.OrdinalIgnoreCase) || value.Equals("on", StringComparison.OrdinalIgnoreCase));
 +        }
+     }
+ }
 diff --git a/src/Ryujinx.Audio/Renderer/Dsp/Command/PcmFloatDataSourceCommandVersion1.cs b/src/Ryujinx.Audio/Renderer/Dsp/Command/PcmFloatDataSourceCommandVersion1.cs
 index 5bf003d..66b549e 100644
 --- a/src/Ryujinx.Audio/Renderer/Dsp/Command/PcmFloatDataSourceCommandVersion1.cs
 +++ b/src/Ryujinx.Audio/Renderer/Dsp/Command/PcmFloatDataSourceCommandVersion1.cs
-@@ -28,0 +29,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+@@ -26,6 +26,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public float Pitch { get; private set; }
+ 
+         public WaveBuffer[] WaveBuffers { get; }
 +        public ulong[] WaveBufferCpuAddresses { get; }
 +        public ulong[] WaveBufferCpuSizes { get; }
-@@ -35,0 +38,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ 
+         public Memory<VoiceState> State { get; private set; }
+         public DecodingBehaviour DecodingBehaviour { get; private set; }
+@@ -33,6 +35,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public PcmFloatDataSourceCommandVersion1()
+         {
+             WaveBuffers = new WaveBuffer[Constants.VoiceWaveBufferCount];
 +            WaveBufferCpuAddresses = new ulong[Constants.VoiceWaveBufferCount];
 +            WaveBufferCpuSizes = new ulong[Constants.VoiceWaveBufferCount];
-@@ -54,0 +59,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         }
+ 
+         public PcmFloatDataSourceCommandVersion1 Initialize(ref VoiceInfo serverInfo, Memory<VoiceState> state, ushort outputBufferIndex, ushort channelIndex, int nodeId)
+@@ -52,6 +56,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+             {
+                 ref Server.Voice.WaveBuffer voiceWaveBuffer = ref waveBufferSpan[i];
+ 
 +                WaveBufferCpuAddresses[i] = voiceWaveBuffer.BufferAddressInfo.CpuAddress;
 +                WaveBufferCpuSizes[i] = voiceWaveBuffer.BufferAddressInfo.Size;
-@@ -66,0 +73 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+                 WaveBuffers[i] = voiceWaveBuffer.ToCommon(1);
+             }
+ 
+@@ -64,6 +70,7 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public void Process(CommandList context)
+         {
+             Span<float> outputBuffer = context.GetBuffer(OutputBufferIndex);
 +            VoiceState stateBefore = State.Span[0];
-@@ -80,0 +88,15 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ 
+             DataSourceHelper.WaveBufferInformation info = new()
+             {
+@@ -78,6 +85,21 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+             };
+ 
+             DataSourceHelper.ProcessWaveBuffers(context.MemoryManager, outputBuffer, ref info, WaveBuffers, ref State.Span[0], context.SampleRate, (int)context.SampleCount);
 +            TtsmodachiAudioTrace.MaybeTrace(
 +                nameof(PcmFloatDataSourceCommandVersion1),
 +                NodeId,
@@ -1022,22 +2916,52 @@ index 5bf003d..66b549e 100644
 +                WaveBufferCpuSizes,
 +                stateBefore,
 +                State.Span[0]);
+         }
+     }
+ }
 diff --git a/src/Ryujinx.Audio/Renderer/Dsp/Command/PcmInt16DataSourceCommandVersion1.cs b/src/Ryujinx.Audio/Renderer/Dsp/Command/PcmInt16DataSourceCommandVersion1.cs
 index 2bcffa5..f31c0ae 100644
 --- a/src/Ryujinx.Audio/Renderer/Dsp/Command/PcmInt16DataSourceCommandVersion1.cs
 +++ b/src/Ryujinx.Audio/Renderer/Dsp/Command/PcmInt16DataSourceCommandVersion1.cs
-@@ -28,0 +29,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+@@ -26,6 +26,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public float Pitch { get; private set; }
+ 
+         public WaveBuffer[] WaveBuffers { get; }
 +        public ulong[] WaveBufferCpuAddresses { get; }
 +        public ulong[] WaveBufferCpuSizes { get; }
-@@ -35,0 +38,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ 
+         public Memory<VoiceState> State { get; private set; }
+         public DecodingBehaviour DecodingBehaviour { get; private set; }
+@@ -33,6 +35,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public PcmInt16DataSourceCommandVersion1()
+         {
+             WaveBuffers = new WaveBuffer[Constants.VoiceWaveBufferCount];
 +            WaveBufferCpuAddresses = new ulong[Constants.VoiceWaveBufferCount];
 +            WaveBufferCpuSizes = new ulong[Constants.VoiceWaveBufferCount];
-@@ -54,0 +59,2 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         }
+ 
+         public PcmInt16DataSourceCommandVersion1 Initialize(ref VoiceInfo serverInfo, Memory<VoiceState> state, ushort outputBufferIndex, ushort channelIndex, int nodeId)
+@@ -52,6 +56,8 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+             {
+                 ref Server.Voice.WaveBuffer voiceWaveBuffer = ref waveBufferSpan[i];
+ 
 +                WaveBufferCpuAddresses[i] = voiceWaveBuffer.BufferAddressInfo.CpuAddress;
 +                WaveBufferCpuSizes[i] = voiceWaveBuffer.BufferAddressInfo.Size;
-@@ -66,0 +73 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+                 WaveBuffers[i] = voiceWaveBuffer.ToCommon(1);
+             }
+ 
+@@ -64,6 +70,7 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+         public void Process(CommandList context)
+         {
+             Span<float> outputBuffer = context.GetBuffer(OutputBufferIndex);
 +            VoiceState stateBefore = State.Span[0];
-@@ -80,0 +88,15 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+ 
+             DataSourceHelper.WaveBufferInformation info = new()
+             {
+@@ -78,6 +85,21 @@ namespace Ryujinx.Audio.Renderer.Dsp.Command
+             };
+ 
+             DataSourceHelper.ProcessWaveBuffers(context.MemoryManager, outputBuffer, ref info, WaveBuffers, ref State.Span[0], context.SampleRate, (int)context.SampleCount);
 +            TtsmodachiAudioTrace.MaybeTrace(
 +                nameof(PcmInt16DataSourceCommandVersion1),
 +                NodeId,
@@ -1053,6 +2977,9 @@ index 2bcffa5..f31c0ae 100644
 +                WaveBufferCpuSizes,
 +                stateBefore,
 +                State.Span[0]);
+         }
+     }
+ }
 diff --git a/src/Ryujinx.Audio/Renderer/Dsp/TtsmodachiAudioTrace.cs b/src/Ryujinx.Audio/Renderer/Dsp/TtsmodachiAudioTrace.cs
 new file mode 100644
 index 0000000..7bc8f8f
@@ -1403,23 +3330,43 @@ diff --git a/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/Compiler.cs b/src/R
 index ac389f4..bb92718 100644
 --- a/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/Compiler.cs
 +++ b/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/Compiler.cs
-@@ -2,0 +3 @@ using ARMeilleure.Memory;
+@@ -1,5 +1,6 @@
+ using ARMeilleure.Common;
+ using ARMeilleure.Memory;
 +using ARMeilleure.Translation;
-@@ -114,0 +116,6 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+ using Ryujinx.Cpu.LightningJit.CodeGen;
+ using Ryujinx.Cpu.LightningJit.CodeGen.Arm64;
+ using Ryujinx.Cpu.LightningJit.Graph;
+@@ -112,6 +113,12 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+                 }
+             }
+ 
 +            public void LoadBlockStateFromContextAfterCall(int blockIndex)
 +            {
 +                Assembler asm = new(Writer);
 +                LoadFromContext(ref asm, _multiBlock.ReadMasks[blockIndex] | _multiBlock.WriteMasks[blockIndex]);
 +            }
 +
-@@ -128,0 +136,6 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+             private void LoadFromContext(ref Assembler asm, RegisterMask readMask)
+             {
+                 LoadGprFromContext(ref asm, readMask.GprMask, NativeContextOffsets.GprBaseOffset);
+@@ -126,6 +133,12 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+                 StoreToContext(ref asm, _multiBlock.WriteMasks[blockIndex], newLrValue);
+             }
+ 
 +            public void StoreBlockStateToContextBeforeCall(int blockIndex)
 +            {
 +                Assembler asm = new(Writer);
 +                StoreToContext(ref asm, _multiBlock.ReadMasks[blockIndex] | _multiBlock.WriteMasks[blockIndex], null);
 +            }
 +
-@@ -347,0 +361,15 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+             private void StoreToContext(ref Assembler asm, RegisterMask writeMask, ulong? newLrValue)
+             {
+                 StoreGprToContext(ref asm, writeMask.GprMask, NativeContextOffsets.GprBaseOffset, newLrValue);
+@@ -345,6 +358,21 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+                 {
+                     InstInfo instInfo = block.Instructions[index];
+ 
 +                    if ((TtsmodachiTextInject.Enabled && TtsmodachiTextInject.Matches(pc)) ||
 +                        (TtsmodachiBlockTrace.Enabled && TtsmodachiBlockTrace.Matches(pc)))
 +                    {
@@ -1435,7 +3382,13 @@ index ac389f4..bb92718 100644
 +                        context.LoadBlockStateFromContextAfterCall(blockIndex);
 +                    }
 +
-@@ -409,0 +438,7 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+                     uint encoding = RegisterUtils.RemapRegisters(regAlloc, instInfo.Flags, instInfo.Encoding);
+ 
+                     if (instInfo.AddressForm != AddressForm.None)
+@@ -407,6 +435,13 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+ 
+                     if (lastInstructionName.IsCall)
+                     {
 +                        if (TtsmodachiAppliance.ShouldHook(pc))
 +                        {
 +                            context.StoreBlockStateToContextBeforeCall(blockIndex);
@@ -1443,7 +3396,13 @@ index ac389f4..bb92718 100644
 +                            context.LoadBlockStateFromContextAfterCall(blockIndex);
 +                        }
 +
-@@ -498,0 +534,7 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+                         context.StoreToContextBeforeCall(blockIndex, pc + 4UL);
+ 
+                         InstEmitSystem.RewriteCallInstruction(
+@@ -496,6 +531,13 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+             CodeWriter writer = context.Writer;
+             Assembler asm = new(writer);
+ 
 +            if (TtsmodachiAppliance.ShouldHook(pc))
 +            {
 +                context.StoreBlockStateToContextBeforeCall(blockIndex);
@@ -1451,13 +3410,23 @@ index ac389f4..bb92718 100644
 +                context.LoadBlockStateFromContextAfterCall(blockIndex);
 +            }
 +
+             int originalOffset;
+             ulong nextAddress = pc + 4UL;
+             ulong targetAddress;
 diff --git a/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/Decoder.cs b/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/Decoder.cs
 index 931c738..5eff5bb 100644
 --- a/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/Decoder.cs
 +++ b/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/Decoder.cs
-@@ -1,0 +2 @@ using ARMeilleure.Memory;
+@@ -1,4 +1,5 @@
+ using ARMeilleure.Memory;
 +using ARMeilleure.Translation;
-@@ -317,0 +319,8 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+ using Ryujinx.Cpu.LightningJit.Graph;
+ using System.Collections.Generic;
+ using System.Diagnostics;
+@@ -315,6 +316,14 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+                     hasHostCall = name.IsCall || InstEmitSystem.NeedsCall(encoding);
+                 }
+ 
 +                if (!hasHostCall &&
 +                    ((TtsmodachiTextInject.Enabled && TtsmodachiTextInject.Matches(address)) ||
 +                     (TtsmodachiBlockTrace.Enabled && TtsmodachiBlockTrace.Matches(address)) ||
@@ -1466,14 +3435,26 @@ index 931c738..5eff5bb 100644
 +                    hasHostCall = true;
 +                }
 +
+                 isControlFlow = name.IsControlFlowOrException;
+ 
+                 RegisterUse registerUse = new(
 diff --git a/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/InstEmitSystem.cs b/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/InstEmitSystem.cs
 index 1bd69bc..d6d5abc 100644
 --- a/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/InstEmitSystem.cs
 +++ b/src/Ryujinx.Cpu/LightningJit/Arm64/Target/Arm64/InstEmitSystem.cs
-@@ -14,0 +15,2 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+@@ -12,6 +12,8 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+     static class InstEmitSystem
+     {
+         private delegate void SoftwareInterruptHandler(ulong address, int imm);
 +        private delegate void GuestAddressHandler(ulong address);
 +        private delegate ulong GuestAddressDispatchHandler(ulong address);
-@@ -141,0 +144,14 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+         private delegate ulong Get64();
+         private delegate bool GetBool();
+ 
+@@ -139,6 +141,20 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+             return OperatingSystem.IsWindows() && SysUtils.IsCacheInstUciTrapped(encoding);
+         }
+ 
 +        public static void WriteTtsmodachiTextInject(CodeWriter writer, RegisterAllocator regAlloc, ulong pc, int spillBaseOffset)
 +        {
 +            Assembler asm = new(writer);
@@ -1488,7 +3469,13 @@ index 1bd69bc..d6d5abc 100644
 +            tailMerger.AddUnconditionalReturn(writer, asm);
 +        }
 +
-@@ -171,0 +188,10 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+         public static bool NeedsContextStoreLoad(InstName name)
+         {
+             return name == InstName.Svc;
+@@ -169,6 +185,16 @@ namespace Ryujinx.Cpu.LightningJit.Arm64.Target.Arm64
+             return Marshal.GetFunctionPointerForDelegate<GetBool>(NativeInterface.CheckSynchronization);
+         }
+ 
 +        private static nint GetTtsmodachiTextInjectPtr()
 +        {
 +            return Marshal.GetFunctionPointerForDelegate<GuestAddressHandler>(NativeInterface.TtsmodachiTextInject);
@@ -1499,16 +3486,27 @@ index 1bd69bc..d6d5abc 100644
 +            return Marshal.GetFunctionPointerForDelegate<GuestAddressDispatchHandler>(NativeInterface.TtsmodachiAppliance);
 +        }
 +
+         public static void WriteSyncPoint(CodeWriter writer, RegisterAllocator regAlloc, TailMerger tailMerger, int spillBaseOffset)
+         {
+             Assembler asm = new(writer);
 diff --git a/src/Ryujinx.Cpu/LightningJit/NativeInterface.cs b/src/Ryujinx.Cpu/LightningJit/NativeInterface.cs
 index 5f243c0..e703796 100644
 --- a/src/Ryujinx.Cpu/LightningJit/NativeInterface.cs
 +++ b/src/Ryujinx.Cpu/LightningJit/NativeInterface.cs
-@@ -1,0 +2 @@ using ARMeilleure.Memory;
+@@ -1,6 +1,9 @@
+ using ARMeilleure.Memory;
 +using ARMeilleure.Translation;
-@@ -3,0 +5,2 @@ using System;
+ using Ryujinx.Cpu.LightningJit.State;
+ using System;
 +using BlockTrace = ARMeilleure.Translation.TtsmodachiBlockTrace;
 +using TextInject = ARMeilleure.Translation.TtsmodachiTextInject;
-@@ -91,0 +95,67 @@ namespace Ryujinx.Cpu.LightningJit
+ 
+ namespace Ryujinx.Cpu.LightningJit
+ {
+@@ -89,5 +92,72 @@ namespace Ryujinx.Cpu.LightningJit
+         {
+             return Context.Memory;
+         }
 +
 +        public static void TtsmodachiTextInject(ulong address)
 +        {
@@ -1576,6 +3574,8 @@ index 5f243c0..e703796 100644
 +        {
 +            return LightningJit.TtsmodachiAppliance.MaybeDispatch(address, GetContext(), GetMemoryManager());
 +        }
+     }
+ }
 diff --git a/src/Ryujinx.Cpu/LightningJit/TtsmodachiAppliance.cs b/src/Ryujinx.Cpu/LightningJit/TtsmodachiAppliance.cs
 new file mode 100644
 index 0000000..f512ddb
@@ -3255,7 +5255,10 @@ diff --git a/src/Ryujinx.Graphics.Gpu/Window.cs b/src/Ryujinx.Graphics.Gpu/Windo
 index 5c3463f..9288874 100644
 --- a/src/Ryujinx.Graphics.Gpu/Window.cs
 +++ b/src/Ryujinx.Graphics.Gpu/Window.cs
-@@ -246,0 +247,11 @@ namespace Ryujinx.Graphics.Gpu
+@@ -244,6 +244,17 @@ namespace Ryujinx.Graphics.Gpu
+             }
+         }
+ 
 +        public void Discard()
 +        {
 +            _context.AdvanceSequence();
@@ -3267,17 +5270,41 @@ index 5c3463f..9288874 100644
 +            }
 +        }
 +
+         /// <summary>
+         /// Indicate that a frame on the queue is ready to be acquired.
+         /// </summary>
 diff --git a/src/Ryujinx.HLE/HOS/Applets/SoftwareKeyboard/SoftwareKeyboardApplet.cs b/src/Ryujinx.HLE/HOS/Applets/SoftwareKeyboard/SoftwareKeyboardApplet.cs
 index 58871a0..81a3a21 100644
 --- a/src/Ryujinx.HLE/HOS/Applets/SoftwareKeyboard/SoftwareKeyboardApplet.cs
 +++ b/src/Ryujinx.HLE/HOS/Applets/SoftwareKeyboard/SoftwareKeyboardApplet.cs
-@@ -17,0 +18 @@ using System.Threading;
+@@ -15,6 +15,7 @@ using System.Runtime.CompilerServices;
+ using System.Runtime.InteropServices;
+ using System.Text;
+ using System.Threading;
 +using System.Threading.Tasks;
-@@ -64,0 +66 @@ namespace Ryujinx.HLE.HOS.Applets
+ 
+ namespace Ryujinx.HLE.HOS.Applets
+ {
+@@ -62,6 +63,7 @@ namespace Ryujinx.HLE.HOS.Applets
+         private NpadReader _npads = null;
+         private bool _canAcceptController = false;
+         private KeyboardInputMode _inputMode = KeyboardInputMode.ControllerAndKeyboard;
 +        private int _headlessAutoInputIndex = 0;
-@@ -470,0 +473 @@ namespace Ryujinx.HLE.HOS.Applets
+ 
+         private readonly Lock _lock = new();
+ 
+@@ -468,6 +470,7 @@ namespace Ryujinx.HLE.HOS.Applets
+                         _backgroundState = InlineKeyboardState.Shown;
+ 
+                         PushChangedString(_textValue, (uint)_cursorBegin, _backgroundState);
 +                        QueueHeadlessAutoAccept();
-@@ -543,0 +547,35 @@ namespace Ryujinx.HLE.HOS.Applets
+                     }
+ 
+                     // Send the response to the Calc
+@@ -541,6 +544,41 @@ namespace Ryujinx.HLE.HOS.Applets
+             }
+         }
+ 
 +        private void QueueHeadlessAutoAccept()
 +        {
 +            if (!bool.TryParse(Environment.GetEnvironmentVariable("RYUJINX_HEADLESS_SWKBD_AUTO_ACCEPT"), out bool autoAccept) || !autoAccept)
@@ -3313,20 +5340,41 @@ index 58871a0..81a3a21 100644
 +            });
 +        }
 +
+         private bool HandleKeyPressedEvent(Key key)
+         {
+             if (key == CycleInputModesKey)
 diff --git a/src/Ryujinx.HLE/Switch.cs b/src/Ryujinx.HLE/Switch.cs
 index 850c8b5..bf4df8b 100644
 --- a/src/Ryujinx.HLE/Switch.cs
 +++ b/src/Ryujinx.HLE/Switch.cs
-@@ -173,0 +174 @@ namespace Ryujinx.HLE
+@@ -171,6 +171,7 @@ namespace Ryujinx.HLE
+         public bool WaitFifo() => Gpu.GPFifo.WaitForCommands();
+         public bool ConsumeFrameAvailable() => Gpu.Window.ConsumeFrameAvailable();
+         public void PresentFrame(Action swapBuffersCallback) => Gpu.Window.Present(swapBuffersCallback);
 +        public void DiscardFrame() => Gpu.Window.Discard();
+         public void DisposeGpu() => Gpu.Dispose();
+ 
+         public void Dispose()
 diff --git a/src/Ryujinx.Input/HLE/NpadManager.cs b/src/Ryujinx.Input/HLE/NpadManager.cs
 index f2936aa..1bb8b74 100644
 --- a/src/Ryujinx.Input/HLE/NpadManager.cs
 +++ b/src/Ryujinx.Input/HLE/NpadManager.cs
-@@ -41,0 +42 @@ namespace Ryujinx.Input.HLE
+@@ -39,6 +39,7 @@ namespace Ryujinx.Input.HLE
+         private bool _enableKeyboard;
+         private bool _enableMouse;
+         private Switch _device;
 +        private ulong _ttsmodachiInputFrame;
-@@ -280,0 +282 @@ namespace Ryujinx.Input.HLE
+         
+         private readonly List<GamepadInput> _hleInputStates = [];
+         private readonly List<SixAxisInput> _hleMotionStates = new(NpadDevices.MaxControllers);
+@@ -278,6 +279,7 @@ namespace Ryujinx.Input.HLE
+                     hleKeyboardInput = NpadController.GetHLEKeyboardInput(_keyboardDriver);
+                 }
+ 
 +                TtsmodachiHeadlessInput.Apply(_ttsmodachiInputFrame++, _hleInputStates);
+                 _device.Hid.Npads.Update(_hleInputStates);
+                 _device.Hid.Npads.UpdateSixAxis(_hleMotionStates);
+ 
 diff --git a/src/Ryujinx.Input/HLE/TtsmodachiHeadlessInput.cs b/src/Ryujinx.Input/HLE/TtsmodachiHeadlessInput.cs
 new file mode 100644
 index 0000000..73328e6
@@ -3621,17 +5669,33 @@ diff --git a/src/Ryujinx/Headless/HeadlessRyujinx.Init.cs b/src/Ryujinx/Headless
 index af61b7b..18db295 100644
 --- a/src/Ryujinx/Headless/HeadlessRyujinx.Init.cs
 +++ b/src/Ryujinx/Headless/HeadlessRyujinx.Init.cs
-@@ -2,0 +3 @@ using LibHac.Tools.FsSystem;
+@@ -1,6 +1,8 @@
+ using DiscordRPC;
+ using LibHac.Tools.FsSystem;
 +using Ryujinx.Audio.Backends.Dummy;
-@@ -3,0 +5 @@ using Ryujinx.Audio.Backends.SDL3;
+ using Ryujinx.Audio.Backends.SDL3;
 +using Ryujinx.Audio.Integration;
-@@ -335 +337 @@ namespace Ryujinx.Headless
+ using Ryujinx.Ava;
+ using Ryujinx.Ava.Systems;
+ using Ryujinx.Ava.Systems.Configuration;
+@@ -332,7 +334,7 @@ namespace Ryujinx.Headless
+                         options.IgnoreMissingServices,
+                         options.AspectRatio,
+                         options.AudioVolume,
 -                        options.UseHypervisor ?? true,
 +                        UseTtsmodachiHypervisorOverride(options.UseHypervisor ?? true),
-@@ -353 +355 @@ namespace Ryujinx.Headless
+                         options.MultiplayerLanInterfaceId,
+                         Common.Configuration.Multiplayer.MultiplayerMode.Disabled,
+                         false,
+@@ -350,9 +352,35 @@ namespace Ryujinx.Headless
+                         _accountManager,
+                         _userChannelPersistence,
+                         renderer.TryMakeThreaded(options.BackendThreading),
 -                        new SDL3HardwareDeviceDriver(),
 +                        CreateTtsmodachiAudioDriver(),
-@@ -356,0 +359,26 @@ namespace Ryujinx.Headless
+                         window
+                     )
+             );
 +
 +        private static bool UseTtsmodachiHypervisorOverride(bool configuredUseHypervisor)
 +        {
@@ -3658,6 +5722,8 @@ index af61b7b..18db295 100644
 +
 +            return new SDL3HardwareDeviceDriver();
 +        }
+     }
+ }
 diff --git a/src/Ryujinx/Headless/TtsmodachiHeadlessTouch.cs b/src/Ryujinx/Headless/TtsmodachiHeadlessTouch.cs
 new file mode 100644
 index 0000000..ac7efaf
@@ -3797,16 +5863,36 @@ diff --git a/src/Ryujinx/Headless/Windows/WindowBase.cs b/src/Ryujinx/Headless/W
 index 49b2a38..d0ef95f 100644
 --- a/src/Ryujinx/Headless/Windows/WindowBase.cs
 +++ b/src/Ryujinx/Headless/Windows/WindowBase.cs
-@@ -7,0 +8 @@ using Ryujinx.Common.Logging;
+@@ -5,6 +5,7 @@ using Ryujinx.Common;
+ using Ryujinx.Common.Configuration;
+ using Ryujinx.Common.Configuration.Hid;
+ using Ryujinx.Common.Logging;
 +using Ryujinx.Cpu.LightningJit;
-@@ -83,0 +85 @@ namespace Ryujinx.Headless
+ using Ryujinx.Graphics.GAL;
+ using Ryujinx.Graphics.GAL.Multithreading;
+ using Ryujinx.Graphics.OpenGL;
+@@ -81,12 +82,17 @@ namespace Ryujinx.Headless
+         private bool _isActive;
+         private bool _isStopped;
+         private SDL_WindowID _windowId;
 +        private ulong _ttsmodachiTouchFrame;
-@@ -89,0 +92,4 @@ namespace Ryujinx.Headless
+ 
+         private string _gpuDriverName;
+ 
+         private readonly AspectRatio _aspectRatio;
+         private readonly bool _enableMouse;
+         private readonly bool _ignoreControllerApplet;
 +        private readonly bool _ttsmodachiNoPresent;
 +        private readonly string _ttsmodachiNoPresentFile;
 +        private readonly bool _ttsmodachiDiscardPresent;
 +        private readonly string _ttsmodachiDiscardPresentFile;
-@@ -113,0 +120,8 @@ namespace Ryujinx.Headless
+ 
+         public WindowBase(
+             InputManager inputManager,
+@@ -111,6 +117,14 @@ namespace Ryujinx.Headless
+             _aspectRatio = aspectRatio;
+             _enableMouse = enableMouse;
+             _ignoreControllerApplet = ignoreControllerApplet;
 +            _ttsmodachiNoPresent = string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_NO_PRESENT"), "true", StringComparison.OrdinalIgnoreCase);
 +            _ttsmodachiNoPresentFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_NO_PRESENT_FILE");
 +            _ttsmodachiDiscardPresent = string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_DISCARD_PRESENT"), "true", StringComparison.OrdinalIgnoreCase);
@@ -3815,12 +5901,24 @@ index 49b2a38..d0ef95f 100644
 +            {
 +                DefaultFlags &= ~SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY;
 +            }
-@@ -175,2 +189,2 @@ namespace Ryujinx.Headless
+             HostUITheme = new HeadlessHostUiTheme();
+ 
+             SDL3Driver.Instance.Initialize();
+@@ -172,8 +186,8 @@ namespace Ryujinx.Headless
+             string titleIdSection = string.IsNullOrWhiteSpace(activeProcess.ProgramIdText) ? string.Empty : $" ({activeProcess.ProgramIdText.ToUpper()})";
+             string titleArchSection = activeProcess.Is64Bit ? " (64-bit)" : " (32-bit)";
+ 
 -            Width = DefaultWidth;
 -            Height = DefaultHeight;
 +            Width = ReadTtsmodachiWindowDimension("RYUJINX_TTSMODACHI_WINDOW_WIDTH", DefaultWidth);
 +            Height = ReadTtsmodachiWindowDimension("RYUJINX_TTSMODACHI_WINDOW_HEIGHT", DefaultHeight);
-@@ -250,0 +265,10 @@ namespace Ryujinx.Headless
+ 
+             if (IsExclusiveFullscreen)
+             {
+@@ -248,6 +262,16 @@ namespace Ryujinx.Headless
+ 
+         protected abstract void InitializeWindowRenderer();
+ 
 +        private static int ReadTtsmodachiWindowDimension(string name, int fallback)
 +        {
 +            if (!int.TryParse(Environment.GetEnvironmentVariable(name), out int value))
@@ -3831,14 +5929,26 @@ index 49b2a38..d0ef95f 100644
 +            return Math.Clamp(value, 16, 3840);
 +        }
 +
-@@ -300,0 +325,6 @@ namespace Ryujinx.Headless
+         protected abstract void InitializeRenderer();
+ 
+         protected abstract void FinalizeWindowRenderer();
+@@ -298,6 +322,12 @@ namespace Ryujinx.Headless
+                         return;
+                     }
+ 
 +                    if (TtsmodachiAppliance.IsHostParked)
 +                    {
 +                        Thread.Sleep(TtsmodachiAppliance.HostParkSleepMilliseconds);
 +                        continue;
 +                    }
 +
-@@ -314 +344,8 @@ namespace Ryujinx.Headless
+                     _ticks += _chrono.ElapsedTicks;
+ 
+                     _chrono.Restart();
+@@ -311,7 +341,14 @@ namespace Ryujinx.Headless
+ 
+                     while (Device.ConsumeFrameAvailable())
+                     {
 -                        Device.PresentFrame(SwapBuffers);
 +                        if (ShouldDiscardPresent())
 +                        {
@@ -3848,7 +5958,13 @@ index 49b2a38..d0ef95f 100644
 +                        {
 +                            Device.PresentFrame(SwapBuffers);
 +                        }
-@@ -334,0 +372,10 @@ namespace Ryujinx.Headless
+                     }
+ 
+                     if (_ticks >= _ticksPerFrame)
+@@ -332,6 +369,16 @@ namespace Ryujinx.Headless
+             FinalizeWindowRenderer();
+         }
+ 
 +        private bool ShouldSkipPresent()
 +        {
 +            return _ttsmodachiNoPresent || (!string.IsNullOrWhiteSpace(_ttsmodachiNoPresentFile) && File.Exists(_ttsmodachiNoPresentFile));
@@ -3859,7 +5975,13 @@ index 49b2a38..d0ef95f 100644
 +            return _ttsmodachiDiscardPresent || (!string.IsNullOrWhiteSpace(_ttsmodachiDiscardPresentFile) && File.Exists(_ttsmodachiDiscardPresentFile));
 +        }
 +
-@@ -365,0 +413,8 @@ namespace Ryujinx.Headless
+         public void Exit()
+         {
+             TouchScreenManager?.Dispose();
+@@ -363,6 +410,14 @@ namespace Ryujinx.Headless
+         {
+             while (_isActive)
+             {
 +                if (TtsmodachiAppliance.IsHostParked)
 +                {
 +                    SDL_PumpEvents();
@@ -3868,7 +5990,13 @@ index 49b2a38..d0ef95f 100644
 +                    continue;
 +                }
 +
-@@ -415,2 +470,6 @@ namespace Ryujinx.Headless
+                 UpdateFrame();
+ 
+                 SDL_PumpEvents();
+@@ -412,8 +467,12 @@ namespace Ryujinx.Headless
+             // Touchscreen
+             bool hasTouch = false;
+ 
 -            // Get screen touch position
 -            if (!_enableMouse)
 +            if (TtsmodachiHeadlessTouch.TryGetTouch(_ttsmodachiTouchFrame++, out var scriptedTouch))
@@ -3877,3 +6005,6 @@ index 49b2a38..d0ef95f 100644
 +                hasTouch = true;
 +            }
 +            else if (!_enableMouse)
+             {
+                 hasTouch = TouchScreenManager.Update(true, (_inputManager.MouseDriver as SDL3MouseDriver).IsButtonPressed(MouseButton.Button1), _aspectRatio.ToFloat());
+             }
