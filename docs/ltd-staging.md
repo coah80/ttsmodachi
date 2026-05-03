@@ -46,6 +46,7 @@ Implemented hooks:
 - Basic-block register tracing via `RYUJINX_TTSMODACHI_BLOCK_TRACE` and `RYUJINX_TTSMODACHI_BLOCK_TRACE_ADDRS`.
 - LTD text injection via `RYUJINX_TTSMODACHI_TEXT_INJECT` at `RYUJINX_TTSMODACHI_TEXT_INJECT_ADDR=0x444660`. The hook writes the UTF-8 bytes into the game's current text buffer and updates `x3` to the injected byte length.
 - LTD appliance dispatch via `RYUJINX_TTSMODACHI_APPLIANCE=true`. This writes the request text into the live VoiceText request object, dispatches the request wrapper at `main+0x4445CC`, and captures raw voice PCM at `main+0x465714` without relying on menu navigation or DSP output capture.
+- Experimental bootstrap context capture/replay via `RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_CAPTURE_ADDRS`, `RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_TRIGGER_ADDRS`, `RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_ADDR`, and `RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_FRAME_FILE`. This is for no-title RE only; it is off by default.
 - Early appliance dispatch plus context restore is enabled by default via `TTSMODACHI_LTD_APPLIANCE_DISPATCH_ON_CAPTURE=true` and `TTSMODACHI_LTD_APPLIANCE_CONTEXT_RESTORE=true`. The hook dispatches from the early `main+0x600EFC` VoiceText capture point, restores the interrupted guest context, and still lets the later audio/PCM path run normally.
 - Appliance park mode via `RYUJINX_TTSMODACHI_APPLIANCE_PARK=true`. Once the VoiceText object is initialized, the guest parks at the hook poll site until a text file changes; after dispatch it lets only the PCM-producing path run, then parks again. This keeps the full title from continuing normal menu/gameplay flow between requests.
 - Scripted controller/touch boot input is disabled by default for appliance mode. Set `TTSMODACHI_LTD_BOOT_INPUT=true` only for first-run setup/debug data dirs that still need UI advancement.
@@ -382,7 +383,7 @@ Latest local proof:
   - `/render` for `http default fast profile one` returned HTTP 200, `X-Cache: MISS`, `X-Render-Time-Ms: 1354.02`, and a 32 kHz mono WAV. A second uncached request returned `X-Render-Time-Ms: 275.43`, and repeating the first text returned `X-Cache: HIT`.
   - After 12s idle, `/health` reported `warm_paused=true`, confirming the idle suspend governor still works with the parent replay default.
 - Coah x64 staging proof:
-  - The x64 Ryubing ARMeilleure appliance hook now uses an unmanaged `NativeInterface.TtsmodachiAppliance` bridge, fixing the earlier managed-call crash.
+  - The x64 Ryubing appliance hook has separate ARMeilleure and LightningJIT callback paths. LightningJIT keeps its unmanaged bridge; ARMeilleure uses a managed callback because managed `UnmanagedCallersOnly` calls crash when this hook is emitted directly.
   - `HostMappedUnsafe`/`HostMapped` still abort during x64 CPU memory-manager startup on the current Docker/.NET 10 build, before any LTD hook runs, so coah staging intentionally stays on `SoftwarePageTable`.
   - The stable coah profile uses direct Xvfb, `SoftwarePageTable`, `main+0x3004` parking, no consumer replay, dummy audio, muted sink, and direct PCM capture at `main+0x465714`.
   - Baseline coah API proof on port `18082`: prewarm `103.84s`, first uncached pangram render `12.825s`, 32 kHz mono WAV, cache hit immediate, paused idle CPU around `0.1%`, RSS around `7.9GiB`.
@@ -390,6 +391,10 @@ Latest local proof:
   - Parent consumer replay at `main+0x2AD98C` can speed one request, but corrupts later dispatches on coah x64; keep it disabled there.
   - Primer prewarm is now the coah default: it pays the first synthesis at startup (`111.653s` in the proof run), then real user renders took `2.380s` and `4.577s`. This is the safest current latency win for Discord traffic.
   - Quiet-tail PCM capture produced longer, less aggressively trimmed files but raised render time to `5.237s` and `7.321s`, so it remains an opt-in debug/quality mode instead of default.
+  - Bootstrap frame capture at `main+0x649B9C` works and saved the expected parent/audio-runtime register frame (`x0=0x65f7406600`, `x19=0x65f4bbd848`, `x20=0x65f4bbd598`, `x22=0x65f4bc4a80`). That capture run rendered valid TTS, but only after the normal title path reached the audio init point.
+  - Replaying the saved `main+0x649B9C` frame from a fresh cold request is not viable. With block trace disabled, replay logged at `main+0x3004`, then produced no appliance PCM and timed out after `95.74s`; `BOOTSTRAP_RETURN_MODE=saved` also timed out after `102.68s`. Triggering from `main+0x927C` hit the same ARMeilleure managed-call crash path before appliance trace output.
+  - Cold appliance mode now defaults `TTSMODACHI_LTD_APPLIANCE_BLOCK_TRACE_ADDRS` to empty, matching warm/prod. Enable it only for targeted trace runs; it is not part of the render path.
+  - Verdict for no-title bootstrap: a saved guest register frame is insufficient. The missing dependency is live parent object graph plus audio queue/renderer scheduling state, not merely the `END of LOADTTS` callsite registers.
 
 Performance note:
 
@@ -406,6 +411,6 @@ Performance note:
    - Static call-site scan found direct wrappers for each `END of LOADTTS` resource lane: `0x8FD0210 -> 0x8FCF710`, `0x909FE10 -> 0x909F270`, `0x910F580 -> 0x910EA00`, `0x9165F90 -> 0x9165410`, `0x91C2010 -> 0x91C1480`, `0x9231280 -> 0x9230700`, `0x9287430 -> 0x92868B0`, `0x93098B0 -> 0x9308D30`, `0x9384080 -> 0x9383500`, `0x93EB800 -> 0x93EAC80`, `0x9452F10 -> 0x9452360`, `0x94BB210 -> 0x94BA660`, and `0x951C330 -> 0x951B790`.
    - The `0x8FCF710` resource loader path and `main+0x60090C` path selector build VoiceText database/path state and are now the best static candidates for a future no-title bootstrap, but calling the request wrapper before the normal audio consumer exists still does not produce PCM.
 4. Use `tools/ltd_trace_correlate.py` output and `tools/ltd_memory_trace_summary.py` to inspect pre-audio relative addresses and memory producer/copy chains.
-5. Replace the natural UI trigger with a direct post-`END of LOADTTS` call path or package an ExeFS patch that jumps into a minimal TTS loop after the audio renderer and VoiceText queue consumer are initialized. Early request-wrapper dispatch alone is not enough; the current constructor target is `main+0x5FF764 -> main+0x5FFFE8`, and the current consumer target is the `main+0x2AD98C` step path and its vtable call at `main+0x2ADA74`.
+5. Replace the natural UI trigger with a direct post-`END of LOADTTS` call path or package an ExeFS patch that jumps into a minimal TTS loop after the audio renderer and VoiceText queue consumer are initialized. Early request-wrapper dispatch and saved bootstrap-frame replay are both insufficient; the next target is reconstructing the parent object graph around `main+0x649B9C -> main+0x6509E4` and the queue init at `main+0x650BC0 -> main+0x651D24`.
 6. Identify the voice parameter struct next to the `main+0x444660` request object and map pitch/speed/quality/tone/accent/intonation.
 7. Benchmark warm render latency after moving from natural preview trigger to direct minimal trigger.

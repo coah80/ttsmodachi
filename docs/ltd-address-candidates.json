@@ -393,6 +393,55 @@
         },
         "status": "rules_out_frame_only_bootstrap"
       },
+      "bootstrap_context_replay_experiment": {
+        "frame_file": "TTSMODACHI_LTD_APPLIANCE_BOOTSTRAP_FRAME_FILE",
+        "capture_address": {
+          "relative": "0x649B9C",
+          "guest": "0x8B4FB9C",
+          "notes": "parent callsite that calls main+0x6509E4 and stores/configures the returned audio runtime object"
+        },
+        "capture_proof": {
+          "prewarm_seconds": 100.257,
+          "render_seconds": 7.56,
+          "frame_bytes": 577,
+          "saved_registers": {
+            "x0": "0x65f7406600",
+            "x1": "0x49d3f8f188",
+            "x3": "0x86ec8c0",
+            "x19": "0x65f4bbd848",
+            "x20": "0x65f4bbd598",
+            "x22": "0x65f4bc4a80",
+            "x29": "0x49d3f8f230",
+            "x30": "0x8b4fb8c",
+            "sp": "0x49d3f8f170"
+          },
+          "status": "frame_captured_and_tts_rendered_after_natural_title_init"
+        },
+        "replay_from_parked_poll": {
+          "trigger_relative": "0x3004",
+          "bootstrap_relative": "0x649B9C",
+          "block_trace": false,
+          "return_modes_tested": [
+            {
+              "mode": "trampoline",
+              "timeout_seconds": 95.74,
+              "pcm": false
+            },
+            {
+              "mode": "saved",
+              "timeout_seconds": 102.68,
+              "pcm": false
+            }
+          ],
+          "trace": "bootstrap replay logged once at main+0x3004, then no dispatch/PCM followed"
+        },
+        "replay_from_early_poll": {
+          "trigger_relative": "0x927C",
+          "status": "not_viable_on_current_ar_path",
+          "notes": "with block trace enabled this hit the ARMeilleure managed-call crash before appliance trace output; with block trace disabled, frame replay still did not produce PCM"
+        },
+        "verdict": "saved bootstrap registers are not enough; the no-title patch must recreate live parent object graph and audio queue scheduling state"
+      },
       "status": "confirmed_indirect_parent_of_final_consumer",
       "audio_ring_constructor_candidates": {
         "parent_guard": {

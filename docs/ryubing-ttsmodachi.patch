@@ -67,14 +67,13 @@ index 3874d04..aa33e64 100644
          {
              if (context.Memory.Type.IsHostMapped)
 diff --git a/src/ARMeilleure/Instructions/NativeInterface.cs b/src/ARMeilleure/Instructions/NativeInterface.cs
-index 3c2d9bb..5379225 100644
+index 3c2d9bb..eca49dc 100644
 --- a/src/ARMeilleure/Instructions/NativeInterface.cs
 +++ b/src/ARMeilleure/Instructions/NativeInterface.cs
-@@ -188,6 +188,12 @@ namespace ARMeilleure.Instructions
+@@ -188,6 +188,11 @@ namespace ARMeilleure.Instructions
              return (ulong)function.FuncPointer.ToInt64();
          }
  
-+        [UnmanagedCallersOnly]
 +        public static ulong TtsmodachiAppliance(ulong address)
 +        {
 +            return Translation.TtsmodachiAppliance.MaybeDispatch(address, GetContext(), GetMemoryManager());
@@ -297,10 +296,10 @@ index b098ff4..a889f0e 100644
              const int MinsCallForRejit = 100;
 diff --git a/src/ARMeilleure/Translation/TtsmodachiAppliance.cs b/src/ARMeilleure/Translation/TtsmodachiAppliance.cs
 new file mode 100644
-index 0000000..62ff501
+index 0000000..d569696
 --- /dev/null
 +++ b/src/ARMeilleure/Translation/TtsmodachiAppliance.cs
-@@ -0,0 +1,1709 @@
+@@ -0,0 +1,1955 @@
 +using ARMeilleure.Memory;
 +using ARMeilleure.Instructions;
 +using ARMeilleure.State;
@@ -335,6 +334,16 @@ index 0000000..62ff501
 +        private static readonly string ContextDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_DIR");
 +        private static readonly int ContextDumpBytes = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_BYTES", 0), 0, 65536);
 +        private static readonly int[] ContextDumpRegisters = ParseRegisterList(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_REGISTERS") ?? "0,1,2,3,19,20,21,22,23,24,29,30,31");
++        private static readonly ulong[] BootstrapCaptureAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_CAPTURE_ADDRS"));
++        private static readonly ulong[] BootstrapTriggerAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_TRIGGER_ADDRS"));
++        private static readonly ulong BootstrapAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_ADDR") ?? "0"));
++        private static readonly ulong BootstrapResumeAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_RESUME_ADDR") ?? "0"));
++        private static readonly int BootstrapMax = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_MAX", 1));
++        private static readonly bool BootstrapRequireText = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_REQUIRE_TEXT", true);
++        private static readonly bool BootstrapReturnSaved = string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_RETURN_MODE"), "saved", StringComparison.OrdinalIgnoreCase);
++        private static readonly string BootstrapFrameFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_FRAME_FILE");
++        private static readonly bool BootstrapFrameLoad = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_FRAME_LOAD", true);
++        private static readonly bool BootstrapFrameSave = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_FRAME_SAVE", true);
 +        private static readonly ulong ConsumerKickAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_ADDR") ?? "0"));
 +        private static readonly int ConsumerKickMax = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_MAX", 0));
 +        private static readonly int ConsumerKickIntervalMs = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_INTERVAL_MS", 0));
@@ -421,6 +430,10 @@ index 0000000..62ff501
 +        private static SavedContext _savedDispatchContext;
 +        private static bool _hasSavedDispatchContext;
 +        private static ulong _savedDispatchContextAddress;
++        private static SavedContext _savedBootstrapContext;
++        private static bool _hasSavedBootstrapContext;
++        private static ulong _savedBootstrapContextAddress;
++        private static int _bootstrapReplayCount;
 +        private static SavedConsumerCall _savedConsumerCall;
 +        private static bool _hasSavedConsumerCall;
 +        private static int _consumerKickCount;
@@ -436,6 +449,7 @@ index 0000000..62ff501
 +        static TtsmodachiAppliance()
 +        {
 +            LoadConsumerFrame();
++            LoadBootstrapFrame();
 +        }
 +
 +        public static bool ShouldHook(ulong address)
@@ -447,6 +461,8 @@ index 0000000..62ff501
 +                 Matches(address, ConsumerCaptureAddresses) ||
 +                 Matches(address, ConsumerKickOnAddresses) ||
 +                 Matches(address, ContextTraceAddresses) ||
++                 Matches(address, BootstrapCaptureAddresses) ||
++                 Matches(address, BootstrapTriggerAddresses) ||
 +                 Matches(address, [TrampolineReturnAddress]));
 +        }
 +
@@ -495,6 +511,16 @@ index 0000000..62ff501
 +            if (Matches(address, ContextTraceAddresses) && (!ContextTraceAfterDispatch || _dispatchCount > 0))
 +            {
 +                TraceContext(context, memory, address);
++            }
++
++            if (Matches(address, BootstrapCaptureAddresses))
++            {
++                CaptureBootstrapContext(context, memory, address);
++            }
++
++            if (Matches(address, BootstrapTriggerAddresses) && TryReplayBootstrap(context, memory, address, out ulong bootstrapAddress))
++            {
++                return bootstrapAddress;
 +            }
 +
 +            if (Matches(address, ConsumerKickOnAddresses) && _dispatchCount > 0 && _pcmDumpRemainingBytes > 0)
@@ -815,6 +841,65 @@ index 0000000..62ff501
 +                _savedDispatchContextAddress = address;
 +                _hasSavedDispatchContext = true;
 +            }
++        }
++
++        private static void CaptureBootstrapContext(ExecutionContext context, IMemoryManager memory, ulong address)
++        {
++            SavedContext saved = BuildSavedContext(context, address + 4);
++            lock (Lock)
++            {
++                _savedBootstrapContext = saved;
++                _savedBootstrapContextAddress = address;
++                _hasSavedBootstrapContext = true;
++            }
++
++            SaveBootstrapFrame(saved, address);
++            Trace(memory, address, "bootstrap", "capture", 0, 0);
++        }
++
++        private static bool TryReplayBootstrap(ExecutionContext context, IMemoryManager memory, ulong address, out ulong bootstrapAddress)
++        {
++            bootstrapAddress = 0;
++            if (BootstrapAddress == 0 || BootstrapMax == 0)
++            {
++                return false;
++            }
++
++            if (BootstrapRequireText && ReadPendingText().Length == 0)
++            {
++                return false;
++            }
++
++            SavedContext saved;
++            ulong savedAddress;
++            int replayCount;
++            lock (Lock)
++            {
++                if (!_hasSavedBootstrapContext || _bootstrapReplayCount >= BootstrapMax)
++                {
++                    return false;
++                }
++
++                saved = _savedBootstrapContext;
++                savedAddress = _savedBootstrapContextAddress;
++                replayCount = ++_bootstrapReplayCount;
++            }
++
++            if (!BootstrapReturnSaved)
++            {
++                SaveContext(context, BootstrapResumeAddress != 0 ? BootstrapResumeAddress : address + 4);
++            }
++
++            RestoreSavedContext(context, saved);
++
++            if (!BootstrapReturnSaved && TrampolineReturnAddress != 0)
++            {
++                context.SetX(30, TrampolineReturnAddress);
++            }
++
++            bootstrapAddress = BootstrapAddress;
++            Trace(memory, address, "bootstrap", $"replay saved_at={ToHex(savedAddress)} count={replayCount}", 0, 0);
++            return true;
 +        }
 +
 +        private static void SaveContext(ExecutionContext context, ulong resumeAddress)
@@ -1303,6 +1388,148 @@ index 0000000..62ff501
 +            }
 +
 +            return foundAny;
++        }
++
++        private static void LoadBootstrapFrame()
++        {
++            if (!BootstrapFrameLoad || string.IsNullOrWhiteSpace(BootstrapFrameFile))
++            {
++                return;
++            }
++
++            try
++            {
++                if (!File.Exists(BootstrapFrameFile))
++                {
++                    return;
++                }
++
++                string content = File.ReadAllText(BootstrapFrameFile);
++                if (!TryParseContextFrame(content, out SavedContext saved, out ulong address))
++                {
++                    return;
++                }
++
++                _savedBootstrapContext = saved;
++                _savedBootstrapContextAddress = address;
++                _hasSavedBootstrapContext = true;
++            }
++            catch
++            {
++            }
++        }
++
++        private static void SaveBootstrapFrame(SavedContext saved, ulong address)
++        {
++            if (!BootstrapFrameSave || string.IsNullOrWhiteSpace(BootstrapFrameFile))
++            {
++                return;
++            }
++
++            try
++            {
++                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(BootstrapFrameFile)) ?? ".");
++                File.WriteAllText(BootstrapFrameFile, FormatContextFrame(saved, address));
++            }
++            catch
++            {
++            }
++        }
++
++        private static string FormatContextFrame(SavedContext saved, ulong address)
++        {
++            StringBuilder builder = new();
++            builder.Append("address=");
++            builder.Append(ToHex(address));
++            builder.Append(" resume=");
++            builder.Append(ToHex(saved.ResumeAddress));
++            builder.Append(" pstate=");
++            builder.Append(ToHex(saved.Pstate));
++            builder.Append(" fpsr=");
++            builder.Append(ToHex(saved.Fpsr));
++            builder.Append(" fpcr=");
++            builder.Append(ToHex(saved.Fpcr));
++            builder.Append(" tpidr_el0=");
++            builder.Append(saved.TpidrEl0.ToString(CultureInfo.InvariantCulture));
++            builder.Append(" tpidrro_el0=");
++            builder.Append(saved.TpidrroEl0.ToString(CultureInfo.InvariantCulture));
++
++            for (int index = 0; index < Math.Min(32, saved.X.Length); index++)
++            {
++                builder.Append(' ');
++                builder.Append('x');
++                builder.Append(index.ToString(CultureInfo.InvariantCulture));
++                builder.Append('=');
++                builder.Append(ToHex(saved.X[index]));
++            }
++
++            builder.AppendLine();
++            return builder.ToString();
++        }
++
++        private static bool TryParseContextFrame(string content, out SavedContext saved, out ulong address)
++        {
++            address = 0;
++            ulong resume = 0;
++            uint pstate = 0;
++            uint fpsr = 0;
++            uint fpcr = 0;
++            long tpidrEl0 = 0;
++            long tpidrroEl0 = 0;
++            ulong[] x = new ulong[32];
++            bool foundAnyRegister = false;
++
++            foreach (string part in content.Split([' ', '\n', '\r', '\t', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
++            {
++                int equals = part.IndexOf('=');
++                if (equals <= 0)
++                {
++                    continue;
++                }
++
++                string key = part[..equals];
++                string value = part[(equals + 1)..];
++                if (key.Length > 1 && key[0] == 'x' && int.TryParse(key[1..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int register) && register is >= 0 and < 32)
++                {
++                    x[register] = ParseAddress(value);
++                    foundAnyRegister = true;
++                    continue;
++                }
++
++                switch (key)
++                {
++                    case "address":
++                        address = ParseAddress(value);
++                        break;
++                    case "resume":
++                        resume = ParseAddress(value);
++                        break;
++                    case "pstate":
++                        pstate = (uint)ParseAddress(value);
++                        break;
++                    case "fpsr":
++                        fpsr = (uint)ParseAddress(value);
++                        break;
++                    case "fpcr":
++                        fpcr = (uint)ParseAddress(value);
++                        break;
++                    case "tpidr_el0":
++                        tpidrEl0 = ParseLong(value);
++                        break;
++                    case "tpidrro_el0":
++                        tpidrroEl0 = ParseLong(value);
++                        break;
++                }
++            }
++
++            V128[] v = new V128[32];
++            for (int index = 0; index < v.Length; index++)
++            {
++                v[index] = V128.Zero;
++            }
++
++            saved = new SavedContext(x, v, pstate, fpsr, fpcr, tpidrEl0, tpidrroEl0, resume);
++            return foundAnyRegister;
 +        }
 +
 +        private static bool TryRestoreAfterDispatch(ulong address, ExecutionContext context, IMemoryManager memory, out ulong resumeAddress)
@@ -1986,6 +2213,24 @@ index 0000000..62ff501
 +                : ulong.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ulong hexParsed)
 +                    ? hexParsed
 +                    : 0;
++        }
++
++        private static long ParseLong(string value)
++        {
++            if (string.IsNullOrWhiteSpace(value))
++            {
++                return 0;
++            }
++
++            value = value.Trim();
++            if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
++            {
++                return unchecked((long)ParseAddress(value));
++            }
++
++            return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed)
++                ? parsed
++                : unchecked((long)ParseAddress(value));
 +        }
 +
 +        private static int ReadInt(string name, int fallback)
@@ -3658,10 +3903,10 @@ index 5f243c0..e703796 100644
  }
 diff --git a/src/Ryujinx.Cpu/LightningJit/TtsmodachiAppliance.cs b/src/Ryujinx.Cpu/LightningJit/TtsmodachiAppliance.cs
 new file mode 100644
-index 0000000..b50e2f9
+index 0000000..467005e
 --- /dev/null
 +++ b/src/Ryujinx.Cpu/LightningJit/TtsmodachiAppliance.cs
-@@ -0,0 +1,1700 @@
+@@ -0,0 +1,1946 @@
 +using ARMeilleure.Memory;
 +using ARMeilleure.Translation;
 +using Ryujinx.Cpu.LightningJit.State;
@@ -3696,6 +3941,16 @@ index 0000000..b50e2f9
 +        private static readonly string ContextDumpDir = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_DIR");
 +        private static readonly int ContextDumpBytes = Math.Clamp(ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_BYTES", 0), 0, 65536);
 +        private static readonly int[] ContextDumpRegisters = ParseRegisterList(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONTEXT_DUMP_REGISTERS") ?? "0,1,2,3,19,20,21,22,23,24,29,30,31");
++        private static readonly ulong[] BootstrapCaptureAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_CAPTURE_ADDRS"));
++        private static readonly ulong[] BootstrapTriggerAddresses = ParseTargets(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_TRIGGER_ADDRS"));
++        private static readonly ulong BootstrapAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_ADDR") ?? "0"));
++        private static readonly ulong BootstrapResumeAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_RESUME_ADDR") ?? "0"));
++        private static readonly int BootstrapMax = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_MAX", 1));
++        private static readonly bool BootstrapRequireText = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_REQUIRE_TEXT", true);
++        private static readonly bool BootstrapReturnSaved = string.Equals(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_RETURN_MODE"), "saved", StringComparison.OrdinalIgnoreCase);
++        private static readonly string BootstrapFrameFile = Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_FRAME_FILE");
++        private static readonly bool BootstrapFrameLoad = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_FRAME_LOAD", true);
++        private static readonly bool BootstrapFrameSave = ReadBoolDefault("RYUJINX_TTSMODACHI_APPLIANCE_BOOTSTRAP_FRAME_SAVE", true);
 +        private static readonly ulong ConsumerKickAddress = NormalizeAddress(ParseAddress(Environment.GetEnvironmentVariable("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_ADDR") ?? "0"));
 +        private static readonly int ConsumerKickMax = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_MAX", 0));
 +        private static readonly int ConsumerKickIntervalMs = Math.Max(0, ReadInt("RYUJINX_TTSMODACHI_APPLIANCE_CONSUMER_KICK_INTERVAL_MS", 0));
@@ -3782,6 +4037,10 @@ index 0000000..b50e2f9
 +        private static SavedContext _savedDispatchContext;
 +        private static bool _hasSavedDispatchContext;
 +        private static ulong _savedDispatchContextAddress;
++        private static SavedContext _savedBootstrapContext;
++        private static bool _hasSavedBootstrapContext;
++        private static ulong _savedBootstrapContextAddress;
++        private static int _bootstrapReplayCount;
 +        private static SavedConsumerCall _savedConsumerCall;
 +        private static bool _hasSavedConsumerCall;
 +        private static int _consumerKickCount;
@@ -3797,6 +4056,7 @@ index 0000000..b50e2f9
 +        static TtsmodachiAppliance()
 +        {
 +            LoadConsumerFrame();
++            LoadBootstrapFrame();
 +        }
 +
 +        public static bool ShouldHook(ulong address)
@@ -3808,6 +4068,8 @@ index 0000000..b50e2f9
 +                 Matches(address, ConsumerCaptureAddresses) ||
 +                 Matches(address, ConsumerKickOnAddresses) ||
 +                 Matches(address, ContextTraceAddresses) ||
++                 Matches(address, BootstrapCaptureAddresses) ||
++                 Matches(address, BootstrapTriggerAddresses) ||
 +                 Matches(address, [TrampolineReturnAddress]));
 +        }
 +
@@ -3847,6 +4109,16 @@ index 0000000..b50e2f9
 +            if (Matches(address, ContextTraceAddresses) && (!ContextTraceAfterDispatch || _dispatchCount > 0))
 +            {
 +                TraceContext(context, memory, address);
++            }
++
++            if (Matches(address, BootstrapCaptureAddresses))
++            {
++                CaptureBootstrapContext(context, memory, address);
++            }
++
++            if (Matches(address, BootstrapTriggerAddresses) && TryReplayBootstrap(context, memory, address, out ulong bootstrapAddress))
++            {
++                return bootstrapAddress;
 +            }
 +
 +            if (Matches(address, ConsumerKickOnAddresses) && _dispatchCount > 0 && _pcmDumpRemainingBytes > 0)
@@ -4167,6 +4439,65 @@ index 0000000..b50e2f9
 +                _savedDispatchContextAddress = address;
 +                _hasSavedDispatchContext = true;
 +            }
++        }
++
++        private static void CaptureBootstrapContext(ExecutionContext context, IMemoryManager memory, ulong address)
++        {
++            SavedContext saved = BuildSavedContext(context, address + 4);
++            lock (Lock)
++            {
++                _savedBootstrapContext = saved;
++                _savedBootstrapContextAddress = address;
++                _hasSavedBootstrapContext = true;
++            }
++
++            SaveBootstrapFrame(saved, address);
++            Trace(memory, address, "bootstrap", "capture", 0, 0);
++        }
++
++        private static bool TryReplayBootstrap(ExecutionContext context, IMemoryManager memory, ulong address, out ulong bootstrapAddress)
++        {
++            bootstrapAddress = 0;
++            if (BootstrapAddress == 0 || BootstrapMax == 0)
++            {
++                return false;
++            }
++
++            if (BootstrapRequireText && ReadPendingText().Length == 0)
++            {
++                return false;
++            }
++
++            SavedContext saved;
++            ulong savedAddress;
++            int replayCount;
++            lock (Lock)
++            {
++                if (!_hasSavedBootstrapContext || _bootstrapReplayCount >= BootstrapMax)
++                {
++                    return false;
++                }
++
++                saved = _savedBootstrapContext;
++                savedAddress = _savedBootstrapContextAddress;
++                replayCount = ++_bootstrapReplayCount;
++            }
++
++            if (!BootstrapReturnSaved)
++            {
++                SaveContext(context, BootstrapResumeAddress != 0 ? BootstrapResumeAddress : address + 4);
++            }
++
++            RestoreSavedContext(context, saved);
++
++            if (!BootstrapReturnSaved && TrampolineReturnAddress != 0)
++            {
++                context.SetX(30, TrampolineReturnAddress);
++            }
++
++            bootstrapAddress = BootstrapAddress;
++            Trace(memory, address, "bootstrap", $"replay saved_at={ToHex(savedAddress)} count={replayCount}", 0, 0);
++            return true;
 +        }
 +
 +        private static void SaveContext(ExecutionContext context, ulong resumeAddress)
@@ -4655,6 +4986,148 @@ index 0000000..b50e2f9
 +            }
 +
 +            return foundAny;
++        }
++
++        private static void LoadBootstrapFrame()
++        {
++            if (!BootstrapFrameLoad || string.IsNullOrWhiteSpace(BootstrapFrameFile))
++            {
++                return;
++            }
++
++            try
++            {
++                if (!File.Exists(BootstrapFrameFile))
++                {
++                    return;
++                }
++
++                string content = File.ReadAllText(BootstrapFrameFile);
++                if (!TryParseContextFrame(content, out SavedContext saved, out ulong address))
++                {
++                    return;
++                }
++
++                _savedBootstrapContext = saved;
++                _savedBootstrapContextAddress = address;
++                _hasSavedBootstrapContext = true;
++            }
++            catch
++            {
++            }
++        }
++
++        private static void SaveBootstrapFrame(SavedContext saved, ulong address)
++        {
++            if (!BootstrapFrameSave || string.IsNullOrWhiteSpace(BootstrapFrameFile))
++            {
++                return;
++            }
++
++            try
++            {
++                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(BootstrapFrameFile)) ?? ".");
++                File.WriteAllText(BootstrapFrameFile, FormatContextFrame(saved, address));
++            }
++            catch
++            {
++            }
++        }
++
++        private static string FormatContextFrame(SavedContext saved, ulong address)
++        {
++            StringBuilder builder = new();
++            builder.Append("address=");
++            builder.Append(ToHex(address));
++            builder.Append(" resume=");
++            builder.Append(ToHex(saved.ResumeAddress));
++            builder.Append(" pstate=");
++            builder.Append(ToHex(saved.Pstate));
++            builder.Append(" fpsr=");
++            builder.Append(ToHex(saved.Fpsr));
++            builder.Append(" fpcr=");
++            builder.Append(ToHex(saved.Fpcr));
++            builder.Append(" tpidr_el0=");
++            builder.Append(saved.TpidrEl0.ToString(CultureInfo.InvariantCulture));
++            builder.Append(" tpidrro_el0=");
++            builder.Append(saved.TpidrroEl0.ToString(CultureInfo.InvariantCulture));
++
++            for (int index = 0; index < Math.Min(32, saved.X.Length); index++)
++            {
++                builder.Append(' ');
++                builder.Append('x');
++                builder.Append(index.ToString(CultureInfo.InvariantCulture));
++                builder.Append('=');
++                builder.Append(ToHex(saved.X[index]));
++            }
++
++            builder.AppendLine();
++            return builder.ToString();
++        }
++
++        private static bool TryParseContextFrame(string content, out SavedContext saved, out ulong address)
++        {
++            address = 0;
++            ulong resume = 0;
++            uint pstate = 0;
++            uint fpsr = 0;
++            uint fpcr = 0;
++            long tpidrEl0 = 0;
++            long tpidrroEl0 = 0;
++            ulong[] x = new ulong[32];
++            bool foundAnyRegister = false;
++
++            foreach (string part in content.Split([' ', '\n', '\r', '\t', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
++            {
++                int equals = part.IndexOf('=');
++                if (equals <= 0)
++                {
++                    continue;
++                }
++
++                string key = part[..equals];
++                string value = part[(equals + 1)..];
++                if (key.Length > 1 && key[0] == 'x' && int.TryParse(key[1..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int register) && register is >= 0 and < 32)
++                {
++                    x[register] = ParseAddress(value);
++                    foundAnyRegister = true;
++                    continue;
++                }
++
++                switch (key)
++                {
++                    case "address":
++                        address = ParseAddress(value);
++                        break;
++                    case "resume":
++                        resume = ParseAddress(value);
++                        break;
++                    case "pstate":
++                        pstate = (uint)ParseAddress(value);
++                        break;
++                    case "fpsr":
++                        fpsr = (uint)ParseAddress(value);
++                        break;
++                    case "fpcr":
++                        fpcr = (uint)ParseAddress(value);
++                        break;
++                    case "tpidr_el0":
++                        tpidrEl0 = ParseLong(value);
++                        break;
++                    case "tpidrro_el0":
++                        tpidrroEl0 = ParseLong(value);
++                        break;
++                }
++            }
++
++            V128[] v = new V128[32];
++            for (int index = 0; index < v.Length; index++)
++            {
++                v[index] = V128.Zero;
++            }
++
++            saved = new SavedContext(x, v, pstate, fpsr, fpcr, tpidrEl0, tpidrroEl0, resume);
++            return foundAnyRegister;
 +        }
 +
 +        private static bool TryRestoreAfterDispatch(ulong address, ExecutionContext context, IMemoryManager memory, out ulong resumeAddress)
@@ -5338,6 +5811,24 @@ index 0000000..b50e2f9
 +                : ulong.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ulong hexParsed)
 +                    ? hexParsed
 +                    : 0;
++        }
++
++        private static long ParseLong(string value)
++        {
++            if (string.IsNullOrWhiteSpace(value))
++            {
++                return 0;
++            }
++
++            value = value.Trim();
++            if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
++            {
++                return unchecked((long)ParseAddress(value));
++            }
++
++            return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed)
++                ? parsed
++                : unchecked((long)ParseAddress(value));
 +        }
 +
 +        private static int ReadInt(string name, int fallback)
