@@ -23,7 +23,7 @@ services:
       TTSMODACHI_LTD_WORK_DIR: /ltd/work
       TTSMODACHI_LTD_DOTNET_ROOT: /usr/share/dotnet
       TTSMODACHI_LTD_PREWARM: "true"
-      TTSMODACHI_LTD_PREWARM_PRIMER: "true"
+      TTSMODACHI_LTD_PREWARM_PRIMER: "false"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()"]
       interval: 30s

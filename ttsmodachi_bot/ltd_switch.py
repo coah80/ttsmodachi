@@ -1710,7 +1710,7 @@ def ltd_boot_input_enabled(appliance_mode: bool) -> bool:
 
 
 def ltd_prewarm_primer_enabled() -> bool:
-    return env_bool_default("TTSMODACHI_LTD_PREWARM_PRIMER", env_bool_default("TTSMODACHI_LTD_APPLIANCE", True))
+    return env_bool_default("TTSMODACHI_LTD_PREWARM_PRIMER", False)
 
 
 def ltd_data_has_appliance_seed(data_dir: Path) -> bool:

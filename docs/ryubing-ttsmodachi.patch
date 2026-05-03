@@ -98,7 +98,7 @@ index 3a76b6d..20d3cc4 100644
      }
  }
 diff --git a/src/ARMeilleure/Translation/Translator.cs b/src/ARMeilleure/Translation/Translator.cs
-index b098ff4..9c05ca3 100644
+index b098ff4..eb3dbc0 100644
 --- a/src/ARMeilleure/Translation/Translator.cs
 +++ b/src/ARMeilleure/Translation/Translator.cs
 @@ -74,6 +74,8 @@ namespace ARMeilleure.Translation
@@ -146,7 +146,18 @@ index b098ff4..9c05ca3 100644
  
                  if (block.Exit)
                  {
-@@ -476,6 +484,102 @@ namespace ARMeilleure.Translation
+@@ -407,6 +415,10 @@ namespace ARMeilleure.Translation
+                         OpCode opCode = block.OpCodes[opcIndex];
+ 
+                         context.CurrOp = opCode;
++                        if (opCode.Address != block.Address)
++                        {
++                            EmitTtsmodachiAppliance(context, opCode.Address);
++                        }
+ 
+                         bool isLastOp = opcIndex == block.OpCodes.Count - 1;
+ 
+@@ -476,6 +488,102 @@ namespace ARMeilleure.Translation
              return context.GetControlFlowGraph();
          }
  
