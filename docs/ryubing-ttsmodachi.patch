@@ -98,7 +98,7 @@ index 3a76b6d..20d3cc4 100644
      }
  }
 diff --git a/src/ARMeilleure/Translation/Translator.cs b/src/ARMeilleure/Translation/Translator.cs
-index b098ff4..eb3dbc0 100644
+index b098ff4..715a6c3 100644
 --- a/src/ARMeilleure/Translation/Translator.cs
 +++ b/src/ARMeilleure/Translation/Translator.cs
 @@ -74,6 +74,8 @@ namespace ARMeilleure.Translation
@@ -157,7 +157,7 @@ index b098ff4..eb3dbc0 100644
  
                          bool isLastOp = opcIndex == block.OpCodes.Count - 1;
  
-@@ -476,6 +488,102 @@ namespace ARMeilleure.Translation
+@@ -476,6 +488,101 @@ namespace ARMeilleure.Translation
              return context.GetControlFlowGraph();
          }
  
@@ -220,7 +220,6 @@ index b098ff4..eb3dbc0 100644
 +            InstEmitFlowHelper.EmitVirtualJump(context, dispatchAddress, isReturn: false);
 +
 +            context.MarkLabel(lblContinue);
-+            context.LoadFromContext();
 +        }
 +
 +        private static Operand TraceRegister(int regIndex)
