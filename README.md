@@ -261,7 +261,7 @@ text shortcuts also exist:
 - `-skip` skips the current playback
 - `-message here` skips your own message from TTS
 
-`/set bot_ignore false` lets other bots and webhooks get read from the setup channel too. TTSmodachi still needs to already be in a voice channel, because bots and webhooks do not tell it which voice channel to join.
+`/set bot_ignore false` lets other bots and webhooks get read from the setup channel too, including embed-only messages. Automated messages do not need a prefix or required role once you opt in. TTSmodachi still needs to already be in a voice channel, because bots and webhooks do not tell it which voice channel to join.
 
 ## tuning
 

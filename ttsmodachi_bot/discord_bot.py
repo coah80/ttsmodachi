@@ -916,6 +916,26 @@ class TTSModachiBot(discord.AutoShardedClient):
     def _is_automated_message(message: discord.Message) -> bool:
         return bool(getattr(message.author, "bot", False) or message.webhook_id is not None)
 
+    @staticmethod
+    def _message_text_for_tts(message: discord.Message, *, include_embeds: bool) -> str:
+        content = (message.content or "").strip()
+        if content or not include_embeds:
+            return content
+
+        parts: list[str] = []
+        for embed in getattr(message, "embeds", ())[:3]:
+            for value in (embed.title, embed.description):
+                if value:
+                    parts.append(str(value))
+            for field in getattr(embed, "fields", ())[:4]:
+                for value in (field.name, field.value):
+                    if value:
+                        parts.append(str(value))
+            footer_text = getattr(getattr(embed, "footer", None), "text", None)
+            if footer_text:
+                parts.append(str(footer_text))
+        return "\n".join(part.strip() for part in parts if part and part.strip())
+
     async def on_message(self, message: discord.Message) -> None:
         if message.guild is None:
             return
@@ -944,8 +964,9 @@ class TTSModachiBot(discord.AutoShardedClient):
         if not in_setup_channel and not in_text_voice:
             return
 
-        raw_content = message.content.strip()
-        if raw_content.lower() == "-skip":
+        message_text = self._message_text_for_tts(message, include_embeds=automated_message)
+        raw_content = (message.content or "").strip()
+        if not automated_message and raw_content.lower() == "-skip":
             player = self.player_for(message.guild.id)
             voice_client = player._current_voice_client()
             can_skip = True
@@ -959,11 +980,11 @@ class TTSModachiBot(discord.AutoShardedClient):
                 await message.add_reaction("\N{THUMBS UP SIGN}")
             return
 
-        if raw_content.startswith("-"):
+        if not automated_message and raw_content.startswith("-"):
             return
-        if settings.required_prefix is None and message.content.startswith(("/", "!", ".")):
+        if not automated_message and settings.required_prefix is None and message.content.startswith(("/", "!", ".")):
             return
-        if settings.required_role_id and isinstance(message.author, discord.Member):
+        if settings.required_role_id and isinstance(message.author, discord.Member) and not automated_message:
             if settings.required_role_id not in {role.id for role in message.author.roles}:
                 return
 
@@ -1025,11 +1046,11 @@ class TTSModachiBot(discord.AutoShardedClient):
             return
 
         text = clean_message(
-            message.content,
+            message_text,
             attachments=[attachment.filename for attachment in message.attachments],
             skip_emoji=settings.skip_emoji,
             repeated_chars=settings.repeated_characters,
-            required_prefix=settings.required_prefix,
+            required_prefix=None if automated_message else settings.required_prefix,
             announce_name=(
                 bot_name_for_message(self.storage, message)
                 if settings.announce_name
