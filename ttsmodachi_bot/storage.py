@@ -22,6 +22,7 @@ class GuildSettings:
     max_message_length: int = 200
     repeated_characters: int = 8
     text_in_voice: bool = True
+    read_non_vc_messages: bool = False
     skip_emoji: bool = False
     announce_name: bool = True
     default_voice_id: str = "adultf"
@@ -65,6 +66,7 @@ class Storage:
                     max_message_length INTEGER NOT NULL DEFAULT 200,
                     repeated_characters INTEGER NOT NULL DEFAULT 8,
                     text_in_voice INTEGER NOT NULL DEFAULT 1,
+                    read_non_vc_messages INTEGER NOT NULL DEFAULT 0,
                     skip_emoji INTEGER NOT NULL DEFAULT 0,
                     announce_name INTEGER NOT NULL DEFAULT 1,
                     default_voice_id TEXT NOT NULL DEFAULT 'adultf'
@@ -72,6 +74,7 @@ class Storage:
                 """
             )
             self._ensure_column("guild_settings", "repeated_characters", "INTEGER NOT NULL DEFAULT 8")
+            self._ensure_column("guild_settings", "read_non_vc_messages", "INTEGER NOT NULL DEFAULT 0")
             self.conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS voice_presets (
@@ -186,11 +189,12 @@ class Storage:
                 max_message_length,
                 repeated_characters,
                 text_in_voice,
+                read_non_vc_messages,
                 skip_emoji,
                 announce_name,
                 default_voice_id
             )
-            VALUES (?, 0, 1, 1, 200, 8, 1, 0, 1, 'adultf')
+            VALUES (?, 0, 1, 1, 200, 8, 1, 0, 0, 1, 'adultf')
             """,
             (guild_id,),
         )
@@ -258,6 +262,7 @@ class Storage:
                 max_message_length=int(row["max_message_length"]),
                 repeated_characters=int(row["repeated_characters"]),
                 text_in_voice=bool(row["text_in_voice"]),
+                read_non_vc_messages=bool(row["read_non_vc_messages"]),
                 skip_emoji=bool(row["skip_emoji"]),
                 announce_name=bool(row["announce_name"]),
                 default_voice_id=row["default_voice_id"],
@@ -274,6 +279,7 @@ class Storage:
             "max_message_length",
             "repeated_characters",
             "text_in_voice",
+            "read_non_vc_messages",
             "skip_emoji",
             "announce_name",
             "default_voice_id",

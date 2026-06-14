@@ -952,14 +952,33 @@ class TTSModachiBot(discord.AutoShardedClient):
         player = self.players.get(message.guild.id)
         voice_client = player._current_voice_client() if player is not None else None
         bot_vc = getattr(voice_client, "channel", None) if voice_client is not None and voice_client.is_connected() else None
+        voice_chat_channel = message.channel if isinstance(message.channel, (discord.VoiceChannel, discord.StageChannel)) else None
         channel_id = getattr(message.channel, "id", None)
+        target_voice_channel: discord.VoiceChannel | discord.StageChannel | None = None
+        target_from_active_player = False
+        if voice_chat_channel is not None:
+            author_in_this_vc = author_vc is not None and author_vc.id == voice_chat_channel.id
+            should_read_non_vc = settings.read_non_vc_messages and (
+                author_vc is None or author_vc.id != voice_chat_channel.id
+            )
+            should_read_automated = automated_message and (
+                settings.read_non_vc_messages
+                or (bot_vc is not None and getattr(bot_vc, "id", None) == voice_chat_channel.id)
+            )
+            if author_in_this_vc or should_read_non_vc or should_read_automated:
+                target_voice_channel = voice_chat_channel
+        elif author_vc is not None:
+            target_voice_channel = author_vc
+        elif automated_message and bot_vc is not None:
+            target_voice_channel = bot_vc
+            target_from_active_player = True
+
         in_setup_channel = settings.setup_channel_id == message.channel.id
         in_text_voice = bool(
             settings.text_in_voice
-            and (
-                (author_vc is not None and author_vc.id == channel_id)
-                or (automated_message and bot_vc is not None and getattr(bot_vc, "id", None) == channel_id)
-            )
+            and voice_chat_channel is not None
+            and target_voice_channel is not None
+            and getattr(target_voice_channel, "id", None) == channel_id
         )
         if not in_setup_channel and not in_text_voice:
             return
@@ -989,47 +1008,30 @@ class TTSModachiBot(discord.AutoShardedClient):
                 return
 
         if author_vc is None:
-            if not automated_message:
-                return
-            if player is None:
+            if target_voice_channel is None:
+                if not automated_message:
+                    return
+                if player is None:
+                    return
+                target_voice_channel = player._target_voice_channel()
+                target_from_active_player = True
+            if target_voice_channel is None:
                 return
 
         player = player or self.player_for(message.guild.id)
         voice_client = player._current_voice_client()
-        if author_vc is None:
-            if voice_client is None or not voice_client.is_connected():
-                target_channel = player._target_voice_channel()
-                if target_channel is None:
-                    return
-                try:
-                    await player.connect(target_channel, message.channel)
-                except discord.Forbidden:
-                    LOGGER.info(
-                        "Autojoin for automated message failed because Discord denied voice access guild=%s channel=%s",
-                        message.guild.id,
-                        getattr(target_channel, "id", None),
-                    )
-                    await player.disconnect(clear_queue=False)
-                    return
-                except (discord.ClientException, discord.HTTPException, aiohttp.ClientError, asyncio.TimeoutError, TimeoutError) as error:
-                    LOGGER.warning(
-                        "Autojoin for automated message failed guild=%s channel=%s error=%s",
-                        message.guild.id,
-                        getattr(target_channel, "id", None),
-                        type(error).__name__,
-                    )
-                    await player.disconnect(clear_queue=False)
-                    return
-        elif voice_client is None or not voice_client.is_connected():
-            if not settings.autojoin:
+        if target_voice_channel is None:
+            return
+        if voice_client is None or not voice_client.is_connected():
+            if not settings.autojoin and not target_from_active_player:
                 return
             try:
-                await player.connect(author_vc, message.channel)
+                await player.connect(target_voice_channel, message.channel)
             except discord.Forbidden:
                 LOGGER.info(
                     "Autojoin failed because Discord denied voice access guild=%s channel=%s",
                     message.guild.id,
-                    getattr(author_vc, "id", None),
+                    getattr(target_voice_channel, "id", None),
                 )
                 await player.disconnect(clear_queue=False)
                 return
@@ -1037,13 +1039,15 @@ class TTSModachiBot(discord.AutoShardedClient):
                 LOGGER.warning(
                     "Autojoin failed guild=%s channel=%s error=%s",
                     message.guild.id,
-                    getattr(author_vc, "id", None),
+                    getattr(target_voice_channel, "id", None),
                     type(error).__name__,
                 )
                 await player.disconnect(clear_queue=False)
                 return
-        elif settings.require_same_vc and getattr(getattr(voice_client, "channel", None), "id", None) != author_vc.id:
-            return
+        else:
+            voice_channel_id = getattr(getattr(voice_client, "channel", None), "id", None)
+            if voice_channel_id != target_voice_channel.id and (voice_chat_channel is not None or settings.require_same_vc):
+                return
 
         text = clean_message(
             message_text,
@@ -1225,6 +1229,7 @@ def register_commands(bot: TTSModachiBot) -> None:
                     "`/set autojoin` - Let the bot autojoin when TTS is sent. Manage Server.",
                     "`/set require_same_vc` - Only read users in the bot's VC. Manage Server.",
                     "`/set text_in_voice` - Read Discord text-in-voice channels. Manage Server.",
+                    "`/set read_non_vc_messages` - Read VC chat from people not in VC. Manage Server.",
                     "`/set required_prefix` - Require a prefix before TTS. Manage Server.",
                     "`/set required_role` - Require a role to use TTS. Manage Server.",
                     "`/set message_length` - Cap message length. Manage Server.",
@@ -1373,6 +1378,7 @@ def register_commands(bot: TTSModachiBot) -> None:
                     f"Require same VC: {format_bool(row.require_same_vc)}",
                     f"Ignore bots: {format_bool(row.ignore_bots)}",
                     f"Text-in-voice: {format_bool(row.text_in_voice)}",
+                    f"Read non-VC voice chat: {format_bool(row.read_non_vc_messages)}",
                     f"Say names: {format_bool(row.announce_name)}",
                     f"Say emoji: {format_bool(not row.skip_emoji)}",
                     f"Required prefix: {required_prefix}",
@@ -1448,6 +1454,12 @@ def register_commands(bot: TTSModachiBot) -> None:
     @app_commands.checks.has_permissions(manage_guild=True)
     async def set_text_in_voice(interaction: discord.Interaction, enabled: bool) -> None:
         await set_bool(interaction, "text_in_voice", "Text-in-voice", enabled)
+
+    @set_group.command(name="read_non_vc_messages", description="Read VC chat from people not in that voice channel.")
+    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def set_read_non_vc_messages(interaction: discord.Interaction, enabled: bool) -> None:
+        await set_bool(interaction, "read_non_vc_messages", "Read non-VC voice chat", enabled)
 
     @set_group.command(name="required_prefix", description="Require a prefix before TTS messages.")
     @app_commands.default_permissions(manage_guild=True)

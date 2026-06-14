@@ -248,6 +248,7 @@ inside Discord:
 - `/leave` leaves voice
 - `/skip` clears queued TTS and stops current playback
 - `/settings` shows current server settings
+- `/set read_non_vc_messages true` reads voice-channel chat from people not in that voice channel
 - `/voice` opens the signed voice dashboard link
 - `/unlink` removes your dashboard link and panel voice preset
 - `/voices list` shows built-in and saved voices
@@ -262,6 +263,8 @@ text shortcuts also exist:
 - `-message here` skips your own message from TTS
 
 `/set bot_ignore false` lets other bots and webhooks get read from the setup channel too, including embed-only messages. Automated messages do not need a prefix or required role once you opt in. TTSmodachi still needs to already be in a voice channel, because bots and webhooks do not tell it which voice channel to join.
+
+`/set read_non_vc_messages true` is off by default. when it is on, people who are not in voice can type in a voice channel's built-in chat and be read in that same voice channel. it still needs `text_in_voice` on, and it does not make TTSmodachi read the rest of the server.
 
 ## tuning
 
