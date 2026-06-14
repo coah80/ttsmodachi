@@ -912,20 +912,34 @@ class TTSModachiBot(discord.AutoShardedClient):
             self.user_cooldowns = {cooldown_key: ts for cooldown_key, ts in self.user_cooldowns.items() if ts >= cutoff}
         return False
 
+    @staticmethod
+    def _is_automated_message(message: discord.Message) -> bool:
+        return bool(getattr(message.author, "bot", False) or message.webhook_id is not None)
+
     async def on_message(self, message: discord.Message) -> None:
         if message.guild is None:
             return
 
+        if self.user is not None and message.author.id == self.user.id:
+            return
+
         settings = self.storage.get_guild_settings(message.guild.id)
-        if settings.ignore_bots and message.author.bot:
+        automated_message = self._is_automated_message(message)
+        if settings.ignore_bots and automated_message:
             return
 
         author_vc = message.author.voice.channel if isinstance(message.author, discord.Member) and message.author.voice else None
+        player = self.players.get(message.guild.id)
+        voice_client = player._current_voice_client() if player is not None else None
+        bot_vc = getattr(voice_client, "channel", None) if voice_client is not None and voice_client.is_connected() else None
+        channel_id = getattr(message.channel, "id", None)
         in_setup_channel = settings.setup_channel_id == message.channel.id
         in_text_voice = bool(
             settings.text_in_voice
-            and author_vc
-            and author_vc.id == getattr(message.channel, "id", None)
+            and (
+                (author_vc is not None and author_vc.id == channel_id)
+                or (automated_message and bot_vc is not None and getattr(bot_vc, "id", None) == channel_id)
+            )
         )
         if not in_setup_channel and not in_text_voice:
             return
@@ -954,10 +968,38 @@ class TTSModachiBot(discord.AutoShardedClient):
                 return
 
         if author_vc is None:
-            return
+            if not automated_message:
+                return
+            if player is None:
+                return
 
-        player = self.player_for(message.guild.id)
-        if player.voice_client is None or not player.voice_client.is_connected():
+        player = player or self.player_for(message.guild.id)
+        voice_client = player._current_voice_client()
+        if author_vc is None:
+            if voice_client is None or not voice_client.is_connected():
+                target_channel = player._target_voice_channel()
+                if target_channel is None:
+                    return
+                try:
+                    await player.connect(target_channel, message.channel)
+                except discord.Forbidden:
+                    LOGGER.info(
+                        "Autojoin for automated message failed because Discord denied voice access guild=%s channel=%s",
+                        message.guild.id,
+                        getattr(target_channel, "id", None),
+                    )
+                    await player.disconnect(clear_queue=False)
+                    return
+                except (discord.ClientException, discord.HTTPException, aiohttp.ClientError, asyncio.TimeoutError, TimeoutError) as error:
+                    LOGGER.warning(
+                        "Autojoin for automated message failed guild=%s channel=%s error=%s",
+                        message.guild.id,
+                        getattr(target_channel, "id", None),
+                        type(error).__name__,
+                    )
+                    await player.disconnect(clear_queue=False)
+                    return
+        elif voice_client is None or not voice_client.is_connected():
             if not settings.autojoin:
                 return
             try:
@@ -979,7 +1021,7 @@ class TTSModachiBot(discord.AutoShardedClient):
                 )
                 await player.disconnect(clear_queue=False)
                 return
-        elif settings.require_same_vc and player.voice_client.channel != author_vc:
+        elif settings.require_same_vc and getattr(getattr(voice_client, "channel", None), "id", None) != author_vc.id:
             return
 
         text = clean_message(
