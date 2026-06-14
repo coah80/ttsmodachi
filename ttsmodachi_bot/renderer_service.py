@@ -49,6 +49,7 @@ storage: Storage | None = None
 cache_dir = Path(env_value("TTSMODACHI_CACHE_DIR", "/cache") or "/cache")
 database_path = Path(os.environ.get("DATABASE_PATH", "/data/ttsmodachi.sqlite3"))
 engine_version = env_value("TTSMODACHI_ENGINE_VERSION", "ttsmodachi-v1") or "ttsmodachi-v1"
+output_gain_percent = max(25, min(300, env_int("TTSMODACHI_OUTPUT_GAIN_PERCENT", 125)))
 inflight_lock = asyncio.Lock()
 inflight_tasks: dict[str, asyncio.Task[dict[str, object]]] = {}
 render_semaphore: asyncio.Semaphore | None = None
@@ -218,7 +219,7 @@ async def render(request: Request, payload: RenderRequest) -> Response:
     if len(text) > voice.text_limit():
         raise HTTPException(status_code=400, detail=f"Text is longer than {voice.text_limit()} characters")
 
-    key = cache_key(text, voice, payload.mode, engine_version)
+    key = cache_key(text, voice, payload.mode, f"{engine_version}:gain{output_gain_percent}")
     store = storage_for()
     store.increment_counter("render_requests")
 
@@ -269,7 +270,7 @@ async def _render_to_cache(cache_path: Path, text: str, voice: VoiceParams, mode
         if cache_path.exists():
             return {"cache": "HIT", "elapsed_ms": ""}
         result = await asyncio.to_thread(pool.render, RenderPayload(text=text, voice=voice, mode=mode))
-        audio = amplify_wav(result["audio"], voice.volume)
+        audio = amplify_wav(result["audio"], effective_output_volume(voice))
         with NamedTemporaryFile(dir=cache_dir, delete=False) as temp:
             temp.write(audio)
             temp_path = Path(temp.name)
@@ -289,6 +290,10 @@ def schedule_cache_prune() -> None:
         return
     cache_prune_next_at = now + max(cache_prune_interval_seconds, 0)
     cache_prune_task = asyncio.create_task(_prune_cache_background())
+
+
+def effective_output_volume(voice: VoiceParams) -> int:
+    return max(25, min(300, round(voice.volume * output_gain_percent / 100)))
 
 
 async def _prune_cache_background() -> None:

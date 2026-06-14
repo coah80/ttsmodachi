@@ -269,11 +269,14 @@ start small:
 TTSMODACHI_US_WORKERS=1
 TTSMODACHI_MAX_INFLIGHT_RENDERS=4
 TTSMODACHI_BOT_RENDER_CONCURRENCY=2
+TTSMODACHI_OUTPUT_GAIN_PERCENT=125
 ```
 
 if your CPU has room, raise workers later. each worker is a warm Citra instance. more workers can make latency worse if the machine is already out of CPU.
 
 the defaults in `.env.example` are intentionally small. once it works, raise workers and concurrency slowly.
+
+`TTSMODACHI_OUTPUT_GAIN_PERCENT` is the master volume boost after rendering. `100` is normal, `125` is the louder default, and `150` is pretty spicy.
 
 by default, the bot joins voice undeafened so Discord does not show it as deafened. if you want the old behavior:
 
