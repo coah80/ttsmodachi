@@ -36,6 +36,7 @@ VOICE_RECOVERY_GIVE_UP_MESSAGE = (
 )
 VOICE_IDLE_DISCONNECT_SECONDS = env_float("TTSMODACHI_VOICE_IDLE_DISCONNECT_SECONDS", 300.0)
 VOICE_ALONE_DISCONNECT_SECONDS = env_float("TTSMODACHI_VOICE_ALONE_DISCONNECT_SECONDS", 60.0)
+VOICE_SELF_DEAF = (os.environ.get("TTSMODACHI_VOICE_SELF_DEAF") or "").lower() in {"1", "true", "yes", "on"}
 VOICE_STARTUP_EMPTY_GRACE_SECONDS = env_float(
     "TTSMODACHI_VOICE_STARTUP_EMPTY_GRACE_SECONDS",
     max(90.0, VOICE_ALONE_DISCONNECT_SECONDS),
@@ -514,7 +515,7 @@ class GuildPlayer:
         self.voice_client = await channel.connect(
             timeout=VOICE_CONNECT_TIMEOUT_SECONDS,
             reconnect=True,
-            self_deaf=True,
+            self_deaf=VOICE_SELF_DEAF,
         )
 
     def _current_voice_client(self) -> discord.VoiceClient | None:

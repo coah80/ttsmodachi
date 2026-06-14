@@ -275,6 +275,12 @@ if your CPU has room, raise workers later. each worker is a warm Citra instance.
 
 the defaults in `.env.example` are intentionally small. once it works, raise workers and concurrency slowly.
 
+by default, the bot joins voice undeafened so Discord does not show it as deafened. if you want the old behavior:
+
+```env
+TTSMODACHI_VOICE_SELF_DEAF=true
+```
+
 ## public hosting notes
 
 keep the renderer bound to localhost unless you know what you are doing:
