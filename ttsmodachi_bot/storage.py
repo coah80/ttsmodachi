@@ -144,6 +144,7 @@ class Storage:
                     bot_name TEXT,
                     guild_count INTEGER NOT NULL DEFAULT 0,
                     voice_connection_count INTEGER NOT NULL DEFAULT 0,
+                    active_user_count INTEGER NOT NULL DEFAULT 0,
                     active_player_count INTEGER NOT NULL DEFAULT 0,
                     queued_message_count INTEGER NOT NULL DEFAULT 0,
                     shard_count INTEGER NOT NULL DEFAULT 1,
@@ -151,6 +152,7 @@ class Storage:
                 )
                 """
             )
+            self._ensure_column("bot_runtime_snapshots", "active_user_count", "INTEGER NOT NULL DEFAULT 0")
             self.conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS active_voice_targets (
@@ -488,6 +490,7 @@ class Storage:
         bot_name: str | None,
         guild_count: int,
         voice_connection_count: int,
+        active_user_count: int,
         active_player_count: int,
         queued_message_count: int,
         shard_count: int,
@@ -501,17 +504,19 @@ class Storage:
                     bot_name,
                     guild_count,
                     voice_connection_count,
+                    active_user_count,
                     active_player_count,
                     queued_message_count,
                     shard_count,
                     updated_at_ms
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(instance_id) DO UPDATE SET
                     bot_user_id = excluded.bot_user_id,
                     bot_name = excluded.bot_name,
                     guild_count = excluded.guild_count,
                     voice_connection_count = excluded.voice_connection_count,
+                    active_user_count = excluded.active_user_count,
                     active_player_count = excluded.active_player_count,
                     queued_message_count = excluded.queued_message_count,
                     shard_count = excluded.shard_count,
@@ -523,6 +528,7 @@ class Storage:
                     bot_name,
                     guild_count,
                     voice_connection_count,
+                    active_user_count,
                     active_player_count,
                     queued_message_count,
                     shard_count,
@@ -561,8 +567,6 @@ class Storage:
             }
             configured_servers = int(self.conn.execute("SELECT COUNT(*) FROM guild_settings").fetchone()[0])
             linked_accounts = int(self.conn.execute("SELECT COUNT(*) FROM panel_account_links").fetchone()[0])
-            custom_voices = int(self.conn.execute("SELECT COUNT(*) FROM voice_presets").fetchone()[0])
-            replacement_count = int(self.conn.execute("SELECT COUNT(*) FROM text_replacements").fetchone()[0])
 
         instances = [
             {
@@ -571,6 +575,7 @@ class Storage:
                 "botName": row["bot_name"],
                 "guildCount": int(row["guild_count"]),
                 "voiceConnectionCount": int(row["voice_connection_count"]),
+                "activeUserCount": int(row["active_user_count"]),
                 "activePlayerCount": int(row["active_player_count"]),
                 "queuedMessageCount": int(row["queued_message_count"]),
                 "shardCount": int(row["shard_count"]),
@@ -585,15 +590,10 @@ class Storage:
             "serverCount": sum(instance["guildCount"] for instance in instances) or configured_servers,
             "configuredServerCount": configured_servers,
             "voiceConnectionCount": sum(instance["voiceConnectionCount"] for instance in instances),
+            "activeUserCount": sum(instance["activeUserCount"] for instance in instances),
             "activePlayerCount": sum(instance["activePlayerCount"] for instance in instances),
             "queuedMessageCount": sum(instance["queuedMessageCount"] for instance in instances),
             "linkedAccountCount": linked_accounts,
-            "customVoiceCount": custom_voices,
-            "replacementCount": replacement_count,
-            "renderRequestCount": counters.get("render_requests", 0),
-            "renderCacheHitCount": counters.get("render_cache_hit", 0),
-            "renderCacheMissCount": counters.get("render_cache_miss", 0),
-            "renderDedupedCount": counters.get("render_cache_deduped", 0),
             "ttsMessageQueuedCount": counters.get("tts_messages_queued", 0),
             "instances": instances,
         }

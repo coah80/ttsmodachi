@@ -797,15 +797,25 @@ class TTSModachiBot(discord.AutoShardedClient):
             for voice_client in self.voice_clients
             if voice_client is not None and voice_client.is_connected()
         )
+        user = self.user
+        bot_user_id = user.id if user else None
+        active_user_ids = {
+            member_id
+            for voice_client in self.voice_clients
+            if voice_client is not None and voice_client.is_connected()
+            for member in getattr(getattr(voice_client, "channel", None), "members", ())
+            for member_id in (getattr(member, "id", None),)
+            if member_id is not None and member_id != bot_user_id and not getattr(member, "bot", False)
+        }
         active_player_count = sum(1 for player in self.players.values() if not player._is_discardable())
         queued_message_count = sum(player.queue.qsize() for player in self.players.values())
-        user = self.user
         self.storage.update_bot_runtime(
             instance_id=self.runtime_instance_id,
-            bot_user_id=user.id if user else None,
+            bot_user_id=bot_user_id,
             bot_name=str(user) if user else None,
             guild_count=len(self.guilds),
             voice_connection_count=voice_connection_count,
+            active_user_count=len(active_user_ids),
             active_player_count=active_player_count,
             queued_message_count=queued_message_count,
             shard_count=int(shard_count),

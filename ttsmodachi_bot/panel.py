@@ -255,8 +255,8 @@ LANDING_HTML = """<!doctype html>
         <div class="stats">
           <div class="stat"><strong id="statServers"><span class="number-value">-</span></strong><span>servers</span></div>
           <div class="stat"><strong id="statVoices"><span class="number-value">-</span></strong><span>linked users</span></div>
-          <div class="stat"><strong id="statRenders"><span class="number-value">-</span></strong><span>render requests</span></div>
-          <div class="stat"><strong id="statWorkers"><span class="number-value">-</span></strong><span>render workers</span></div>
+          <div class="stat"><strong id="statMessages"><span class="number-value">-</span></strong><span>messages spoken</span></div>
+          <div class="stat"><strong id="statActiveUsers"><span class="number-value">-</span></strong><span>users using it now</span></div>
         </div>
       </div>
     </section>
@@ -305,15 +305,12 @@ LANDING_HTML = """<!doctype html>
         const summary = await response.json();
         const bot = summary.bot || {};
         const analytics = summary.analytics || {};
-        const renderer = summary.renderer || {};
-        const pool = renderer.pool || {};
-        const workers = Array.isArray(pool.workers) ? pool.workers.length : 0;
         for (const id of ["navInvite", "heroInvite", "footerInvite"]) setLink(id, bot.inviteUrl);
         for (const id of ["navSupport", "heroSupport", "footerSupport"]) setLink(id, bot.supportUrl);
         setNumber("statServers", analytics.serverCount);
         setNumber("statVoices", analytics.linkedAccountCount);
-        setNumber("statRenders", analytics.renderRequestCount);
-        setNumber("statWorkers", workers);
+        setNumber("statMessages", analytics.ttsMessageQueuedCount);
+        setNumber("statActiveUsers", analytics.activeUserCount);
       } catch (error) {
       }
     }
@@ -543,7 +540,7 @@ PRIVACY_POLICY_HTML = legal_page(
         <li>Server settings, including setup channel, role requirements, prefix, message length, emoji behavior, name announcement, and default voice.</li>
         <li>User voice settings, saved voice presets, selected default voice, custom TTS names, and text replacement rules.</li>
         <li>When you use /voice, your Discord user ID, display name, avatar URL, and link time for the dashboard session.</li>
-        <li>Aggregate analytics such as server count, linked account count, render count, worker count, and queue/runtime health.</li>
+        <li>Aggregate analytics such as server count, linked account count, spoken message count, current active voice user count, and queue/runtime health.</li>
       </ul>
       <h2>Message content</h2>
       <p>When the bot is active in a configured channel, message text and attachment filenames may be read, cleaned, and sent to the renderer so audio can be generated. TTSmodachi does not intentionally store raw Discord message text as database records. Generated audio may be cached as WAV files to improve speed and reduce duplicate rendering; that cache is pruned by size.</p>

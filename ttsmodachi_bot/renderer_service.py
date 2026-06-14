@@ -136,13 +136,6 @@ async def bot_summary() -> dict[str, object]:
             "permissionInteger": main_bot_invite_permissions,
         },
         "analytics": storage_for().get_public_bot_analytics(),
-        "renderer": {
-            "ready": pool is not None,
-            "maxInflightRenders": max_inflight_renders,
-            "inflightRenders": len(inflight_tasks),
-            "cacheMaxBytes": cache_max_bytes,
-            "pool": pool.health() if pool else None,
-        },
     }
 
 
