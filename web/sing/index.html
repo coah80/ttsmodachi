@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="pixi.min.js"></script>
+    <script src="../utils.js"></script>
+    <link rel="stylesheet" href="../style.css?v=20260426">
+    <link rel="stylesheet" href="style.css?v=20260426">
+</head>
+<body style="margin: 0;">
+    <audio id="audioPlayer"></audio>
+    <audio id="previewAudioPlayer"></audio>
+    <div class="controls">
+        <div class="top">
+            <div class="pill outerpill">
+                <span class="pill">BPM</span>
+                <input type="number" min="25" max="200" value="120" id="bpmInput">
+            </div>
+            <div class="pill outerpill">
+                <span class="pill">Grid</span>
+                <select id="gridSelect">
+                    <option value="1" selected>1</option>
+                    <option value="1/2">1/2</option>
+                    <option value="1/3">1/3</option>
+                    <option value="1/4">1/4</option>
+                    <option value="1/6">1/6</option>
+                    <option value="1/8">1/8</option>
+                    <option value="1/12">1/12</option>
+                    <option value="1/16">1/16</option>
+                </select>
+            </div>
+            <div class="pill outerpill">
+                <span class="pill">Language</span>
+                <select id="langSelect">
+                    <option value="useng" selected>🇺🇸 US English</option>
+                    <option value="eueng">🇪🇺 EU English</option>
+                    <option value="es">🇪🇸 Spanish</option>
+                    <option value="de">🇩🇪 German</option>
+                    <option value="fr">🇫🇷 French</option>
+                    <option value="it">🇮🇹 Italian</option>
+                    <option value="kr">🇰🇷 Korean</option>
+                    <option value="jp" disabled>🇯🇵 Japanese (TC)</option>
+                </select>
+            </div>
+            <button id="playButton" class="yellow">Play</button>
+            <button id="saveGenSongButton" class="yellow button" onclick="saveGeneratedSong()" disabled>Download</button>
+            <button id="toggleNoteModeButton" class="yellow" onclick="toggleMode('note')">Edit Notes</button>
+            <button id="toggleEventModeButton" class="yellow" onclick="toggleMode('event')">Edit Events</button>
+            <button id="toggleBendModeButton" class="yellow" onclick="toggleMode('bend')">Edit Bends</button>
+            <button id="saveSongButton" class="yellow hidden">Save</button>
+            <button id="loadSongButton" class="yellow hidden">Load</button>
+        </div>
+        <div id="eventsMenu" class="bottom hidden">
+            <div class="pill outerpill">
+                <span class="pill">Event Type:</span>
+                <select id="addEventSelect"></select>
+            </div>
+            
+            <div id="singControlsContainer"></div>
+        </div>
+    </div>
+    <div class="hidden cover" id="loadingCover">
+        <div class="loader">Generating...</div>
+    </div>
+    <div class="cover" id="disclaimerCover" style="text-align: center;">
+        <div>
+            <h2>Extra work in progress!</h2>
+            <p>The singing UI is very WIP - Even more so than TTSModachi itself.</p>
+            <p>Expect bugs, issues, and general weirdness.</p>
+            <p>It is also not mobile compatible.</p>
+            <button onclick="document.getElementById('disclaimerCover').style.display='none'">I Understand</button>
+        </div>
+    </div>
+    <div id="canv"></div>
+    <script src="events.js?v=20260426"></script>
+    <script src="sing.js?v=20260427"></script>
+    <script>
+        if (window.location.hostname == "localhost" || window.location.hostname == "127.0.0.1"){
+            document.getElementById('disclaimerCover').style.display='none';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+services:
+  tts-worker:
+    build:
+      context: .
+    command: python -m ttsmodachi_bot.renderer_service
+    restart: unless-stopped
+    cpus: "${TTSMODACHI_TTS_WORKER_CPUS:-6.0}"
+    env_file:
+      - .env
+    environment:
+      RENDERER_HOST: 0.0.0.0
+      RENDERER_PORT: 8080
+      TTSMODACHI_CACHE_DIR: /cache
+      CITRA_MAX_RUNTIME_SECONDS: "0"
+      CITRA_LOG_OUTPUT: ${CITRA_LOG_OUTPUT:-discard}
+      SDL_AUDIODRIVER: dummy
+      SDL_VIDEODRIVER: dummy
+    volumes:
+      - ./roms:/opt:ro
+      - renderer-cache:/cache
+      - bot-data:/data
+    ports:
+      - "${RENDERER_BIND:-127.0.0.1}:${RENDERER_HOST_PORT:-18080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "25m"
+        max-file: "3"
+
+  bot:
+    build:
+      context: .
+    command: python -m ttsmodachi_bot.discord_bot
+    restart: unless-stopped
+    stop_grace_period: 45s
+    cpus: "${TTSMODACHI_BOT_CPUS:-1.0}"
+    env_file:
+      - .env
+    environment:
+      RENDERER_URL: http://tts-worker:8080
+      SYNC_COMMANDS_ON_START: ${SYNC_COMMANDS_ON_START:-true}
+    volumes:
+      - bot-data:/data
+    depends_on:
+      - tts-worker
+
+  bot2:
+    profiles: ["bot2"]
+    build:
+      context: .
+    command: python -m ttsmodachi_bot.discord_bot
+    restart: unless-stopped
+    stop_grace_period: 45s
+    cpus: "${TTSMODACHI_BOT2_CPUS:-${TTSMODACHI_BOT_CPUS:-1.0}}"
+    env_file:
+      - .env
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN_2:-}
+      RENDERER_URL: http://tts-worker:8080
+      SYNC_COMMANDS_ON_START: ${SYNC_COMMANDS_ON_START_BOT2:-${SYNC_COMMANDS_ON_START:-true}}
+    volumes:
+      - bot-data:/data
+    depends_on:
+      - tts-worker
+
+volumes:
+  bot-data:
+  renderer-cache:

@@ -1,0 +1,7 @@
+aiohttp>=3.9
+discord.py[voice]>=2.4
+fastapi>=0.115
+Flask>=3.1
+flask-cors>=5.0
+pykakasi>=2.3
+uvicorn>=0.32
