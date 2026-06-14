@@ -5,6 +5,8 @@ __pycache__
 data
 cache
 logs
+rom-patch-work/
+.rom-patch-work/
 *.cxi
 *.3ds
 *.cia

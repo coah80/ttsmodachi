@@ -4,7 +4,7 @@ okay so this is TTSmodachi.
 
 it is a Discord TTS bot that talks through the Tomodachi Life / Talkmodachi 3DS voice renderer. you run the Discord bot, a renderer service, and a patched Citra worker pool. people type in a configured text channel and the bot reads it in voice chat with goofy Tomodachi voices.
 
-this repo does not include ROMs, keys, Discord tokens, databases, logs, or my hosted bot config. bring your own legally dumped game files.
+this repo does not include ROMs, bring your own legally dumped game files.
 
 ## what you get
 
@@ -24,7 +24,7 @@ you need:
 - Git
 - a Discord application with a bot user
 - Message Content Intent enabled for the bot in the Discord Developer Portal
-- a legally dumped Tomodachi Life CXI that you patch yourself
+- a legally dumped Tomodachi Life CXI
 - enough CPU for Citra workers. start with 1 worker if you are not sure
 
 do not upload ROMs to GitHub. keep them in `roms/` only.
@@ -60,7 +60,7 @@ now edit `.env`.
 minimum local test values:
 
 ```env
-DISCORD_TOKEN=your_discord_bot_token_here
+DISCORD_TOKEN=replace_me
 TTSMODACHI_BOT_CLIENT_ID=your_discord_application_client_id_here
 TTSMODACHI_PANEL_URL=http://127.0.0.1:18080
 TTSMODACHI_WORKER_ROMS=US
@@ -74,7 +74,7 @@ for a public host, change these:
 ```env
 TTSMODACHI_PANEL_URL=https://your-domain.example
 TTSMODACHI_PUBLIC_HOSTS=your-domain.example
-TTSMODACHI_PANEL_SIGNING_KEY=put-a-long-random-string-here
+TTSMODACHI_PANEL_SIGNING_KEY=replace_me
 TTSMODACHI_SUPPORT_INVITE_URL=https://discord.gg/your-support-server
 ```
 
@@ -86,7 +86,7 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 ## patch your ROM
 
-this part is the least friendly part, sorry.
+this part is the least friendly part, sorry. there is a tool way now, and then the manual way if the tool is annoying on your setup.
 
 you need a legal Tomodachi Life dump as a CXI. the renderer expects patched files named like this:
 
@@ -103,6 +103,52 @@ only put the regions you are actually using in `.env`. for example:
 TTSMODACHI_WORKER_ROMS=US
 TTSMODACHI_US_WORKERS=1
 ```
+
+### tool way
+
+you still need `3dstool` and Magikoopa installed. the helper does the extract and rebuild steps, then pauses while you run the Magikoopa patch step.
+
+from the repo folder:
+
+```sh
+python tools/patch_rom.py --input ./TomodachiLife.cxi --region US
+```
+
+on Windows, if `python` is not on PATH:
+
+```powershell
+py -3 tools\patch_rom.py --input C:\path\to\TomodachiLife.cxi --region US
+```
+
+if `3dstool` is not on PATH:
+
+```sh
+python tools/patch_rom.py --input ./TomodachiLife.cxi --region US --three-dstool /path/to/3dstool
+```
+
+if you want the helper to launch Magikoopa for you:
+
+```sh
+python tools/patch_rom.py --input ./TomodachiLife.cxi --region US --magikoopa /path/to/Magikoopa
+```
+
+what the tool does:
+
+1. extracts the CXI into `.rom-patch-work/`
+2. extracts ExeFS and tries to decompress `code.bin`
+3. stages a Magikoopa working folder at `.rom-patch-work/gamePatch/`
+4. waits for you to press Make and Insert in Magikoopa
+5. rebuilds the CXI into `roms/US.cxi`
+
+if Magikoopa is easier to run manually, start with:
+
+```sh
+python tools/patch_rom.py --input ./TomodachiLife.cxi --region US --prepare-only
+```
+
+open `.rom-patch-work/gamePatch/` in Magikoopa, press Make and Insert, then run the resume command the tool prints.
+
+### manual way
 
 the original Talkmodachi patch flow is:
 
@@ -242,8 +288,8 @@ if you put a reverse proxy in front of it, set:
 ```env
 TTSMODACHI_PANEL_URL=https://your-domain.example
 TTSMODACHI_PUBLIC_HOSTS=your-domain.example
-TTSMODACHI_PANEL_SIGNING_KEY=long-random-string
-TTSMODACHI_PANEL_TOKEN=another-long-random-string
+TTSMODACHI_PANEL_SIGNING_KEY=replace_me
+TTSMODACHI_PANEL_TOKEN=replace_me
 ```
 
 `TTSMODACHI_PANEL_TOKEN` locks public `/render` and `/api/config` requests. internal Docker calls from the Discord bot still work without sending that token.

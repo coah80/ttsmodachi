@@ -4,6 +4,8 @@
 logs
 data
 cache
+rom-patch-work
+.rom-patch-work
 roms/*.cxi
 roms/*.3ds
 roms/*.cia
