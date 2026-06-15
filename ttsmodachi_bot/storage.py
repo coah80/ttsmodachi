@@ -583,11 +583,12 @@ class Storage:
             }
             for row in runtime_rows
         ]
+        current_server_count = sum(instance["guildCount"] for instance in instances)
         return {
             "online": bool(instances),
             "updatedAtMs": now_ms,
             "instanceCount": len(instances),
-            "serverCount": sum(instance["guildCount"] for instance in instances) or configured_servers,
+            "serverCount": current_server_count,
             "configuredServerCount": configured_servers,
             "voiceConnectionCount": sum(instance["voiceConnectionCount"] for instance in instances),
             "activeUserCount": sum(instance["activeUserCount"] for instance in instances),
