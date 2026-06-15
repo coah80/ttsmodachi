@@ -225,7 +225,7 @@ LANDING_HTML = """<!doctype html>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="TTSmodachi home"><img class="brand-mark" src="/static/asdfsdfsadf.png?v=1" alt="" width="44" height="44"></a>
+    <a class="brand" href="/" aria-label="TTSmodachi home"><img class="brand-mark" src="/static/ttsmodachi-logo.png?v=1" alt="" width="44" height="44"></a>
     <nav class="nav" aria-label="Main navigation">
       <a class="button secondary" id="navSupport" href="#">Support</a>
       <a class="button primary" id="navInvite" href="#">Invite bot</a>
@@ -477,7 +477,7 @@ def legal_page(title: str, body: str) -> str:
 {LEGAL_PAGE_STYLE}</head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="TTSmodachi home"><img class="brand-mark" src="/static/asdfsdfsadf.png?v=1" alt="" width="44" height="44"></a>
+    <a class="brand" href="/" aria-label="TTSmodachi home"><img class="brand-mark" src="/static/ttsmodachi-logo.png?v=1" alt="" width="44" height="44"></a>
     <nav class="nav" aria-label="Legal navigation">
       <a href="/tos">Terms</a>
       <a href="/privacy-policy">Privacy</a>
