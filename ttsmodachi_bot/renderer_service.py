@@ -22,6 +22,7 @@ from .env import env_int, env_value
 from .engines import ENGINES
 from .panel import LANDING_HTML, PANEL_HTML, PRIVACY_POLICY_HTML, TOS_HTML
 from .panel_tokens import PanelSession, parse_panel_token
+from .prosody import add_grammar_pauses
 from .renderer_pool import RenderPayload, RendererPool
 from .storage import Storage
 from .voices import BUILTIN_VOICES, LANG_TO_ID, LANG_TO_ROM, VoiceParams, cache_key
@@ -50,6 +51,7 @@ cache_dir = Path(env_value("TTSMODACHI_CACHE_DIR", "/cache") or "/cache")
 database_path = Path(os.environ.get("DATABASE_PATH", "/data/ttsmodachi.sqlite3"))
 engine_version = env_value("TTSMODACHI_ENGINE_VERSION", "ttsmodachi-v1") or "ttsmodachi-v1"
 output_gain_percent = max(25, min(300, env_int("TTSMODACHI_OUTPUT_GAIN_PERCENT", 125)))
+grammar_pauses = (env_value("TTSMODACHI_GRAMMAR_PAUSES", "true") or "true").lower() not in {"0", "false", "no", "off"}
 inflight_lock = asyncio.Lock()
 inflight_tasks: dict[str, asyncio.Task[dict[str, object]]] = {}
 render_semaphore: asyncio.Semaphore | None = None
@@ -218,8 +220,9 @@ async def render(request: Request, payload: RenderRequest) -> Response:
     text = payload.text.replace("\n", " ").strip()
     if len(text) > voice.text_limit():
         raise HTTPException(status_code=400, detail=f"Text is longer than {voice.text_limit()} characters")
+    render_text = add_grammar_pauses(text) if grammar_pauses and payload.mode == "text" else text
 
-    key = cache_key(text, voice, payload.mode, f"{engine_version}:gain{output_gain_percent}")
+    key = cache_key(render_text, voice, payload.mode, f"{engine_version}:gain{output_gain_percent}:grammarpauses1")
     store = storage_for()
     store.increment_counter("render_requests")
 
@@ -234,7 +237,7 @@ async def render(request: Request, payload: RenderRequest) -> Response:
         if task is None:
             if len(inflight_tasks) >= max_inflight_renders:
                 raise HTTPException(status_code=429, detail="Renderer queue is full")
-            task = asyncio.create_task(_render_to_cache(cache_path, text, voice, payload.mode))
+            task = asyncio.create_task(_render_to_cache(cache_path, render_text, voice, payload.mode))
             inflight_tasks[key] = task
             created = True
 
