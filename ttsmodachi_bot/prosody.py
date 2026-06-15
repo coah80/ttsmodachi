@@ -8,6 +8,11 @@ SENTENCE_PUNCTUATION = ".!?"
 CLOSING_PUNCTUATION = "\"')]}"
 OPENING_PUNCTUATION = "\"'([{"
 MAX_GRAMMAR_PAUSES = 24
+COMMA_PAUSE_MS = 230
+CLAUSE_PAUSE_MS = 340
+SENTENCE_PAUSE_MS = 540
+QUESTION_EXCLAMATION_PAUSE_MS = 620
+ELLIPSIS_PAUSE_MS = 760
 COMMON_ABBREVIATIONS = {
     "dr",
     "jr",
@@ -77,9 +82,9 @@ def add_grammar_pauses(text: str) -> str:
                 index += 1
                 out.append(text[index])
             if pause_count < MAX_GRAMMAR_PAUSES and _should_pause_after_sentence(text, start, index, mark):
-                pause_ms = 520 if "..." in mark else 380
+                pause_ms = ELLIPSIS_PAUSE_MS if "..." in mark else SENTENCE_PAUSE_MS
                 if "!" in mark or "?" in mark:
-                    pause_ms = max(pause_ms, 430)
+                    pause_ms = max(pause_ms, QUESTION_EXCLAMATION_PAUSE_MS)
                 out.append(_pause_command(pause_ms))
                 pause_count += 1
             index += 1
@@ -94,7 +99,7 @@ def add_grammar_pauses(text: str) -> str:
                 and _has_next_word(text, index + 1)
                 and not (char in ",:" and previous.isdigit() and next_char.isdigit())
             ):
-                out.append(_pause_command(170 if char == "," else 240))
+                out.append(_pause_command(COMMA_PAUSE_MS if char == "," else CLAUSE_PAUSE_MS))
                 pause_count += 1
             index += 1
             continue
