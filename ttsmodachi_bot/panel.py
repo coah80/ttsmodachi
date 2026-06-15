@@ -537,13 +537,13 @@ PRIVACY_POLICY_HTML = legal_page(
       <h2>Data we process</h2>
       <ul>
         <li>Discord IDs for users, servers, channels, roles, and the bot account, so settings and voice connections work in the right place.</li>
-        <li>Server settings, including role requirements, prefix, message length, emoji behavior, name announcement, and default voice.</li>
+        <li>Server settings, including configured text channel, role requirements, prefix, message length, emoji behavior, name announcement, and default voice.</li>
         <li>User voice settings, saved voice presets, selected default voice, custom TTS names, and text replacement rules.</li>
         <li>When you use /voice, your Discord user ID, display name, avatar URL, and link time for the dashboard session.</li>
         <li>Aggregate analytics such as server count, linked account count, spoken message count, current active voice user count, and queue/runtime health.</li>
       </ul>
       <h2>Message content</h2>
-      <p>When the bot is active in a configured channel, message text and attachment filenames may be read, cleaned, and sent to the renderer so audio can be generated. TTSmodachi does not intentionally store raw Discord message text as database records. Generated audio may be cached as WAV files to improve speed and reduce duplicate rendering; that cache is pruned by size.</p>
+      <p>When the bot is active in a configured text channel or voice channel chat, message text and attachment filenames may be read, cleaned, and sent to the renderer so audio can be generated. TTSmodachi does not intentionally store raw Discord message text as database records. Generated audio may be cached as WAV files to improve speed and reduce duplicate rendering; that cache is pruned by size.</p>
       <h2>How we use data</h2>
       <p>We use this data to operate the bot, join and leave voice channels, generate speech, save your voice settings, run the dashboard, display public aggregate analytics, debug failures, prevent abuse, and keep the service stable.</p>
       <h2>Sharing</h2>

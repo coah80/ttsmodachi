@@ -12,7 +12,7 @@ the README has the main tutorial. this file is the short version for people who 
 8. start with `TTSMODACHI_US_WORKERS=1`
 9. run `docker compose up --build`
 10. open `http://127.0.0.1:18080/health`
-11. invite the bot, join a voice channel, run `/join`, then type in that voice channel's chat
+11. invite the bot, join a voice channel, run `/join`, then type in that voice channel's chat or run `/channel #some-channel`
 
 for public hosting, put a reverse proxy in front of port 18080 and set:
 

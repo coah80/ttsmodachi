@@ -2,13 +2,13 @@
 
 okay so this is TTSmodachi.
 
-it is a Discord TTS bot that talks through the Tomodachi Life / Talkmodachi 3DS voice renderer. you run the Discord bot, a renderer service, and a patched Citra worker pool. people type in the voice channel chat the bot is joined to, and the bot reads it out loud with goofy Tomodachi voices.
+it is a Discord TTS bot that talks through the Tomodachi Life / Talkmodachi 3DS voice renderer. you run the Discord bot, a renderer service, and a patched Citra worker pool. people type in the voice channel chat, or a text channel you pick with `/channel`, and the bot reads it out loud with goofy Tomodachi voices.
 
 this repo does not include ROMs, bring your own legally dumped game files.
 
 ## what you get
 
-- Discord slash commands like `/join`, `/leave`, `/skip`, `/voice`, `/voices`, `/replace`, and `/settings`
+- Discord slash commands like `/join`, `/leave`, `/channel`, `/skip`, `/voice`, `/voices`, `/replace`, and `/settings`
 - a warm renderer service so Citra is not booting for every message
 - SQLite storage for server settings, user voices, linked dashboard accounts, and voice targets
 - a web voice panel for changing pitch, speed, quality, tone, accent, intonation, language, and volume
@@ -237,13 +237,14 @@ inside Discord:
 
 1. join a voice channel
 2. run `/join`
-3. type in that voice channel's built-in chat
+3. type in that voice channel's built-in chat, or run `/channel #some-channel` to pick a normal text channel
 4. use `/voice` to open your personal voice dashboard
 
 ## useful commands
 
 - `/join` joins your current voice channel
 - `/leave` leaves voice
+- `/channel` sets the text channel the bot reads into the voice channel it is joined in
 - `/skip` clears queued TTS and stops current playback
 - `/settings` shows current server settings
 - `/set read_non_vc_messages true` reads voice-channel chat from people not in that voice channel
@@ -260,7 +261,9 @@ text shortcuts also exist:
 - `-skip` skips the current playback
 - `-message here` skips your own message from TTS
 
-`/set bot_ignore false` lets other bots and webhooks get read from the current voice channel chat too, including embed-only messages. Automated messages do not need a prefix or required role once you opt in. TTSmodachi still needs to already be in that voice channel, because bots and webhooks do not tell it which voice channel to join.
+`/channel #some-channel` sets a normal text channel for TTS. messages sent there get read into the voice channel TTSmodachi is currently joined in. run `/channel` with no channel to clear it and go back to just voice channel chat.
+
+`/set bot_ignore false` lets other bots and webhooks get read from the current voice channel chat or configured `/channel` text channel too, including embed-only messages. Automated messages do not need a prefix or required role once you opt in. TTSmodachi still needs to already be in voice, because bots and webhooks do not tell it which voice channel to join.
 
 `/set read_non_vc_messages true` is off by default. when it is on, people who are not in voice can type in a voice channel's built-in chat and be read in that same voice channel. it still needs `text_in_voice` on, and it does not make TTSmodachi read the rest of the server.
 
