@@ -537,7 +537,7 @@ PRIVACY_POLICY_HTML = legal_page(
       <h2>Data we process</h2>
       <ul>
         <li>Discord IDs for users, servers, channels, roles, and the bot account, so settings and voice connections work in the right place.</li>
-        <li>Server settings, including setup channel, role requirements, prefix, message length, emoji behavior, name announcement, and default voice.</li>
+        <li>Server settings, including role requirements, prefix, message length, emoji behavior, name announcement, and default voice.</li>
         <li>User voice settings, saved voice presets, selected default voice, custom TTS names, and text replacement rules.</li>
         <li>When you use /voice, your Discord user ID, display name, avatar URL, and link time for the dashboard session.</li>
         <li>Aggregate analytics such as server count, linked account count, spoken message count, current active voice user count, and queue/runtime health.</li>

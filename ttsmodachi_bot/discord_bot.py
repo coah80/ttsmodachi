@@ -964,35 +964,20 @@ class TTSModachiBot(discord.AutoShardedClient):
         voice_client = player._current_voice_client() if player is not None else None
         bot_vc = getattr(voice_client, "channel", None) if voice_client is not None and voice_client.is_connected() else None
         voice_chat_channel = message.channel if isinstance(message.channel, (discord.VoiceChannel, discord.StageChannel)) else None
-        channel_id = getattr(message.channel, "id", None)
         target_voice_channel: discord.VoiceChannel | discord.StageChannel | None = None
         target_from_active_player = False
-        if voice_chat_channel is not None:
-            author_in_this_vc = author_vc is not None and author_vc.id == voice_chat_channel.id
-            should_read_non_vc = settings.read_non_vc_messages and (
-                author_vc is None or author_vc.id != voice_chat_channel.id
-            )
-            should_read_automated = automated_message and (
-                settings.read_non_vc_messages
-                or (bot_vc is not None and getattr(bot_vc, "id", None) == voice_chat_channel.id)
-            )
-            if author_in_this_vc or should_read_non_vc or should_read_automated:
-                target_voice_channel = voice_chat_channel
-        elif author_vc is not None:
-            target_voice_channel = author_vc
-        elif automated_message and bot_vc is not None:
-            target_voice_channel = bot_vc
-            target_from_active_player = True
-
-        in_setup_channel = settings.setup_channel_id == message.channel.id
-        in_text_voice = bool(
-            settings.text_in_voice
-            and voice_chat_channel is not None
-            and target_voice_channel is not None
-            and getattr(target_voice_channel, "id", None) == channel_id
-        )
-        if not in_setup_channel and not in_text_voice:
+        if voice_chat_channel is None or not settings.text_in_voice:
             return
+        author_in_this_vc = author_vc is not None and author_vc.id == voice_chat_channel.id
+        bot_in_this_vc = bot_vc is not None and getattr(bot_vc, "id", None) == voice_chat_channel.id
+        should_read_non_vc = settings.read_non_vc_messages and (
+            author_vc is None or author_vc.id != voice_chat_channel.id
+        )
+        should_read_automated = automated_message and (settings.read_non_vc_messages or bot_in_this_vc)
+        if not (author_in_this_vc or should_read_non_vc or should_read_automated):
+            return
+        target_voice_channel = voice_chat_channel
+        target_from_active_player = bot_in_this_vc
 
         message_text = self._message_text_for_tts(message, include_embeds=automated_message)
         raw_content = (message.content or "").strip()
@@ -1233,8 +1218,6 @@ def register_commands(bot: TTSModachiBot) -> None:
             name="Server settings",
             value="\n".join(
                 [
-                    "`/setup` - Admin shortcut for the TTS text channel.",
-                    "`/set channel` - Set the TTS text channel. Manage Server.",
                     "`/set autojoin` - Let the bot autojoin when TTS is sent. Manage Server.",
                     "`/set require_same_vc` - Only read users in the bot's VC. Manage Server.",
                     "`/set text_in_voice` - Read Discord text-in-voice channels. Manage Server.",
@@ -1303,14 +1286,6 @@ def register_commands(bot: TTSModachiBot) -> None:
         else:
             await interaction.response.send_message("Your account was not linked to the voice dashboard.", ephemeral=True)
 
-    @bot.tree.command(name="setup", description="Set the text channel TTSModachi reads from.")
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.checks.has_permissions(administrator=True)
-    async def setup(interaction: discord.Interaction, channel: discord.TextChannel) -> None:
-        assert interaction.guild is not None
-        bot.storage.set_guild_value(interaction.guild.id, "setup_channel_id", channel.id)
-        await interaction.response.send_message(f"TTSModachi will read messages from {channel.mention}.", ephemeral=True)
-
     @bot.tree.command(name="join", description="Join your voice channel.")
     async def join(interaction: discord.Interaction) -> None:
         assert interaction.guild is not None
@@ -1349,7 +1324,7 @@ def register_commands(bot: TTSModachiBot) -> None:
                 ephemeral=True,
             )
             return
-        await interaction.followup.send("Joined. Type normally in the setup channel.", ephemeral=True)
+        await interaction.followup.send("Joined. Type in this voice channel's chat.", ephemeral=True)
 
     @bot.tree.command(name="leave", description="Leave the current voice channel.")
     async def leave(interaction: discord.Interaction) -> None:
@@ -1375,14 +1350,12 @@ def register_commands(bot: TTSModachiBot) -> None:
     async def settings(interaction: discord.Interaction) -> None:
         assert interaction.guild is not None
         row = bot.storage.get_guild_settings(interaction.guild.id)
-        setup_channel = f"<#{row.setup_channel_id}>" if row.setup_channel_id else "not set"
         required_role = f"<@&{row.required_role_id}>" if row.required_role_id else "none"
         required_prefix = row.required_prefix if row.required_prefix else "none"
         replacements = len(bot.storage.list_replacements(interaction.guild.id))
         await interaction.response.send_message(
             "\n".join(
                 [
-                    f"Setup channel: {setup_channel}",
                     f"Autojoin: {format_bool(row.autojoin)}",
                     f"Require same VC: {format_bool(row.require_same_vc)}",
                     f"Ignore bots: {format_bool(row.ignore_bots)}",
@@ -1411,14 +1384,6 @@ def register_commands(bot: TTSModachiBot) -> None:
         assert interaction.guild is not None
         bot.storage.set_guild_value(interaction.guild.id, column, int(value))
         await interaction.response.send_message(f"{label} is now {format_bool(value)}.", ephemeral=True)
-
-    @set_group.command(name="channel", description="Set the text channel TTSModachi reads from.")
-    @app_commands.default_permissions(manage_guild=True)
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def set_channel(interaction: discord.Interaction, channel: discord.TextChannel) -> None:
-        assert interaction.guild is not None
-        bot.storage.set_guild_value(interaction.guild.id, "setup_channel_id", channel.id)
-        await interaction.response.send_message(f"TTSModachi will read messages from {channel.mention}.", ephemeral=True)
 
     @set_group.command(name="autojoin", description="Allow automatic voice join when someone sends TTS.")
     @app_commands.default_permissions(manage_guild=True)
