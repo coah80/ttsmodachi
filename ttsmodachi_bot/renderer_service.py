@@ -125,6 +125,8 @@ async def privacy_policy() -> HTMLResponse:
 
 @app.get("/api/bot/summary")
 async def bot_summary() -> dict[str, object]:
+    async with inflight_lock:
+        inflight_count = len(inflight_tasks)
     return {
         "bot": {
             "name": "TTSmodachi",
@@ -136,6 +138,11 @@ async def bot_summary() -> dict[str, object]:
             "permissionInteger": main_bot_invite_permissions,
         },
         "analytics": storage_for().get_public_bot_analytics(),
+        "renderer": {
+            "inflightRenders": inflight_count,
+            "maxInflightRenders": max_inflight_renders,
+            "pool": pool.health() if pool else None,
+        },
     }
 
 
