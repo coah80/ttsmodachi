@@ -309,7 +309,7 @@ LANDING_HTML = """<!doctype html>
         for (const id of ["navSupport", "heroSupport", "footerSupport"]) setLink(id, bot.supportUrl);
         setNumber("statServers", analytics.serverCount);
         setNumber("statVoices", analytics.linkedAccountCount);
-        setNumber("statMessages", analytics.ttsMessageQueuedCount);
+        setNumber("statMessages", analytics.ttsMessageSubmittedCount);
         setNumber("statActiveUsers", analytics.activeUserCount);
       } catch (error) {
       }

@@ -594,7 +594,8 @@ class Storage:
             "activePlayerCount": sum(instance["activePlayerCount"] for instance in instances),
             "queuedMessageCount": sum(instance["queuedMessageCount"] for instance in instances),
             "linkedAccountCount": linked_accounts,
-            "ttsMessageQueuedCount": counters.get("tts_messages_queued", 0),
+            "ttsMessageSubmittedCount": counters.get("tts_messages_submitted", 0),
+            "ttsMessageQueuedCount": counters.get("tts_messages_submitted", 0),
             "instances": instances,
         }
 

@@ -386,6 +386,7 @@ class GuildPlayer:
                         continue
                     await self.connect(channel, reply_to)
                 async with self.bot.render_slots:
+                    self.bot.storage.increment_counter("tts_messages_submitted")
                     audio = await self.bot.renderer.render(text, voice)
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as file:
                     file.write(audio)
@@ -1085,9 +1086,7 @@ class TTSModachiBot(discord.AutoShardedClient):
         )
         voice = coerce_supported_voice_language(self.storage.resolve_voice(voice_id, message.guild.id, message.author.id))
         queued = await player.enqueue(text, voice, message.channel)
-        if queued:
-            self.storage.increment_counter("tts_messages_queued")
-        else:
+        if not queued:
             await message.add_reaction("⏳")
 
 
