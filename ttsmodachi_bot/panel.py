@@ -16,8 +16,8 @@ LANDING_HTML = """<!doctype html>
       --border: #30343e;
       --text: #f3f4f6;
       --muted: #a2a9b4;
-      --accent: #ef4444;
-      --accent-2: #4da3ff;
+      --accent: #3a8cfe;
+      --accent-2: #3a8cfe;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; }
@@ -79,7 +79,7 @@ LANDING_HTML = """<!doctype html>
     .button.primary {
       background: var(--accent);
       border-color: var(--accent);
-      color: #210707;
+      color: #ffffff;
     }
     .button.secondary {
       background: var(--panel-2);
@@ -328,7 +328,7 @@ LANDING_HTML = """<!doctype html>
       const ctx = canvas.getContext("2d");
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
-      ctx.strokeStyle = "#ef4444";
+      ctx.strokeStyle = "#3a8cfe";
       ctx.lineWidth = 3;
       for (let row = 0; row < 8; row += 1) {
         const base = height * .25 + row * 38;
@@ -363,7 +363,7 @@ LEGAL_PAGE_STYLE = """
       --border: #30343e;
       --text: #f3f4f6;
       --muted: #a2a9b4;
-      --accent: #ef4444;
+      --accent: #3a8cfe;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; }
@@ -575,8 +575,8 @@ PANEL_HTML = """<!doctype html>
       --border: #30343e;
       --text: #f3f4f6;
       --muted: #a2a9b4;
-      --accent: #ef4444;
-      --accent-2: #4da3ff;
+      --accent: #3a8cfe;
+      --accent-2: #3a8cfe;
       --warn: #f6ad55;
       --danger: #fb7185;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -603,7 +603,7 @@ PANEL_HTML = """<!doctype html>
     button.primary {
       background: var(--accent);
       border-color: var(--accent);
-      color: #210707;
+      color: #ffffff;
       font-weight: 700;
     }
     button:disabled {
