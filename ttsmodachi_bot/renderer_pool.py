@@ -438,6 +438,10 @@ class WorkerLane:
             elif message_type == "startup_error":
                 self.startup_failed = True
                 self.last_error = message["error"]
+                if self.process_restart_count < 2:
+                    self.ready.clear()
+                    self.restart()
+                    return
                 self.ready.set()
             elif message_type == "state":
                 self._apply_state(message)
