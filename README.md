@@ -196,6 +196,8 @@ build and start the normal one-bot setup:
 docker compose up --build
 ```
 
+the first build compiles the patched Citra from source, so it can take a long while (10 to 30+ minutes depending on CPU). later builds reuse the cached Citra layer and are fast.
+
 or run it in the background:
 
 ```sh
@@ -271,10 +273,19 @@ for the easiest streamer setup, host the stream service and let the streamer add
 docker compose --profile stream up --build -d tts-worker stream
 ```
 
-public setup page:
+set these in `.env` first:
+
+```env
+TWITCH_CLIENT_ID=your_twitch_app_client_id
+TWITCH_CLIENT_SECRET=your_twitch_app_client_secret
+TTSMODACHI_STREAM_PUBLIC_BASE_URL=https://your-stream-domain.example
+TTSMODACHI_STREAM_COOKIE_SECRET=replace_me
+```
+
+local setup page (or your public domain if you put a reverse proxy in front):
 
 ```text
-https://stream.coah80.com
+http://127.0.0.1:18120
 ```
 
 the streamer logs in with Twitch, copies their private browser source URL, adds it in OBS, and mutes only their existing alert TTS. random mode picks a different audible voice per bit message. speech is queued FIFO, so simultaneous bits are read one at a time. see `docs/stream.md`.
