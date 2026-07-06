@@ -22,6 +22,7 @@ from .env import env_int, env_value
 from .engines import ENGINES
 from .panel import LANDING_HTML, PANEL_HTML, PRIVACY_POLICY_HTML, TOS_HTML
 from .panel_tokens import PanelSession, parse_panel_token
+from .tester import TESTER_HTML
 from .prosody import add_grammar_pauses
 from .renderer_pool import RenderPayload, RendererPool
 from .storage import Storage
@@ -102,6 +103,11 @@ async def panel(request: Request) -> HTMLResponse:
     if request.query_params.get("token"):
         return HTMLResponse(PANEL_HTML)
     return HTMLResponse(LANDING_HTML)
+
+
+@app.get("/tester", response_class=HTMLResponse)
+async def tester() -> HTMLResponse:
+    return HTMLResponse(TESTER_HTML)
 
 
 
