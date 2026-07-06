@@ -4,6 +4,28 @@ Notes from reverse-engineering the US ROM (`code.bin`, remaster `0002`) plus
 an empirical render sweep against the live renderer. This is the reference for
 keeping the web voice panel faithful to the game.
 
+## The game's own voice editor (authoritative)
+
+Decompressed from `romfs/message/Game/Game_US_English_LZ.bin` (LZ11 -> DARC ->
+`Edit.msbt`). The in-game "Mii Voice" screen offers three ways to set a voice,
+then six custom sliders:
+
+| In-game text  | Internal label      | Meaning |
+|---------------|---------------------|---------|
+| Preset        | `VoiceEasySet`      | Pick a ready-made voice |
+| Random        | `VoiceRandomSet`    | Roll a random voice |
+| Custom / Edit Voice | `VoiceCustomSet` / `VoiceCustomEdit` | Tweak the six sliders |
+| Pitch         | `VoiceCustom_Pitch` | |
+| Speed         | `VoiceCustom_Speed` | |
+| Quality       | `VoiceCustom_Warp`  | internal name is "Warp" |
+| Tone          | `VoiceCustom_Phrase`| internal name is "Phrase" |
+| Accent        | `VoiceCustom_Accent`| |
+| Intonation    | `VoiceCustom_Intona`| |
+
+Tutorial text: *"Give this Mii a voice! You can select a preset or random
+setting or customize it yourself."* The panel mirrors this: Preset buttons,
+a Random Voice button, and the six Custom sliders.
+
 ## The six parameters
 
 The game's TTS is `libNTTS` (Nintendo TTS, data in `romfs/libNTTS`). A single
@@ -49,15 +71,23 @@ Takeaways for the panel:
 
 ## Internals (partial)
 
-The concrete setters (`0x7d9xxx` in the US dump) index a 10-byte-stride record
+The concrete setters (`0x7d9xxx` in the US dump) index a 10-byte-stride table
 in the engine object (`this->0xc`), reading per-field bytes (tone at +2, accent
-at +4, pitch at +6, speed at +8, intonation at +9). So values pass through an
-engine lookup rather than being applied linearly, which is why the measured
-response above is monotonic-ish but not perfectly linear.
+at +4, pitch at +6, speed at +8, intonation at +9). This is the engine's
+slider-value -> coefficient response curve (indexed by the 0-100 value), which
+is why the measured response is monotonic-ish but not perfectly linear.
+
+## Assets that exist but are not shipped
+
+- The in-game voice-editor UI is in `romfs/layout/layout_editor_LZ.bin`
+  (LZ11 -> DARC): `Voice.bclyt` / `VoiceDetail.bclyt` layouts plus
+  `Voice_*.bclim` textures. Decoding BCLIM (3DS tile-swizzle + ETC1) is a
+  separate pipeline, and the art is Nintendo's, so it is intentionally not
+  baked into this repo. The panel recreates the layout in CSS instead.
+- Tools used: `docs`/`ntools.py`-style LZ11 + DARC + MSBT parsing (not committed;
+  reproducible from any US dump with `3dstool`).
 
 ## Not yet done
 
 - Non-English voices need the EU ROM (`roms/EU.cxi`) and EU-specific gamePatch
   hook addresses; the US dump only produces US English. See `gamePatch/hooks`.
-- Pixel-faithful UI textures (the in-game voice-editor art) live in the
-  LZ11-compressed DARC layout archives under `romfs/layout`; not extracted yet.

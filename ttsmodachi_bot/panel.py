@@ -902,7 +902,12 @@ PANEL_HTML = """<!doctype html>
 
       <aside>
         <section>
-          <h2>Presets</h2>
+          <h2>Voice Settings</h2>
+          <p class="hint" style="margin:0 0 10px">Like the game: start from a <strong>Preset</strong>, roll a <strong>Random</strong> voice, or tweak the sliders yourself (<strong>Custom</strong>).</p>
+          <div class="button-row" style="margin-top:0">
+            <button id="randomVoice">Random Voice</button>
+          </div>
+          <h2 style="margin-top:14px">Presets</h2>
           <div class="preset-grid" id="presets"></div>
         </section>
         <section>
@@ -1232,6 +1237,22 @@ PANEL_HTML = """<!doctype html>
     });
     $("reset").addEventListener("click", () => {
       applyVoice({pitch: 50, speed: 50, quality: 50, tone: 50, accent: 50, intonation: 1, lang: "useng", volume: 165});
+      setReadyStatus();
+    });
+
+    // Mirrors the game's "Random" voice option: roll the six voice params.
+    $("randomVoice").addEventListener("click", () => {
+      const r = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+      applyVoice({
+        pitch: r(15, 90),
+        tone: r(15, 90),
+        speed: r(30, 75),
+        quality: r(25, 75),
+        accent: r(25, 75),
+        intonation: r(1, 4),
+        lang: state.values.lang,
+        volume: state.values.volume
+      });
       setReadyStatus();
     });
 
