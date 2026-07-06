@@ -102,6 +102,8 @@ you dump your own copy of Tomodachi Life from your own 3DS with custom firmware 
 
 the one thing that does not work is an **encrypted** dump. if the tool complains about encryption, re-dump with GodMode9 using a decrypt option.
 
+also make sure your dump is the **updated Rev 1** game (remaster version `0002`). the patch hooks were built against that revision, and other revisions can crash the renderer or leave workers stuck at "not ready". the patch tool prints your dump's remaster version and warns if it does not match.
+
 the renderer expects patched files named like this:
 
 ```text
@@ -333,6 +335,7 @@ inside Discord:
 - `/settings` shows current server settings
 - `/set read_non_vc_messages true` reads voice-channel chat from people not in that voice channel
 - `/voice` opens the signed voice dashboard link
+- `/nickname` sets the name TTS uses for you in "name said" (works for everyone, no permission needed)
 - `/unlink` removes your dashboard link and panel voice preset
 - `/voices list` shows built-in and saved voices
 - `/voices save` saves a custom voice

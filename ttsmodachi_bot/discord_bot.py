@@ -976,6 +976,13 @@ class TTSModachiBot(discord.AutoShardedClient):
                 target_from_active_player = True
             elif isinstance(author_vc, (discord.VoiceChannel, discord.StageChannel)):
                 target_voice_channel = author_vc
+            if (
+                not automated_message
+                and settings.require_same_vc
+                and target_voice_channel is not None
+                and (author_vc is None or author_vc.id != target_voice_channel.id)
+            ):
+                return
         elif voice_chat_channel is None or not settings.text_in_voice:
             return
         else:
@@ -1206,6 +1213,7 @@ def register_commands(bot: TTSModachiBot) -> None:
                     "`-skip` - Text shortcut for skip; reacts with a thumbs up.",
                     "`-message` - Keep that message from being read aloud.",
                     "`/voice` - Link your Discord account or open your voice dashboard.",
+                    "`/nickname` - Set the name TTS uses for you in '<name> said'.",
                     "`/support` - Get the support Discord invite.",
                     "`/unlink` - Unlink your Discord account from the voice dashboard.",
                 ]
@@ -1515,11 +1523,10 @@ def register_commands(bot: TTSModachiBot) -> None:
         rendered = "off" if limit == 0 else str(limit)
         await interaction.response.send_message(f"Repeated character clamp is now {rendered}.", ephemeral=True)
 
-    @set_group.command(name="nickname", description="Change the name used in '<name> said'.")
-    async def set_nickname(
+    async def apply_nickname(
         interaction: discord.Interaction,
-        user: discord.Member | None = None,
-        nickname: str | None = None,
+        user: discord.Member | None,
+        nickname: str | None,
     ) -> None:
         assert interaction.guild is not None
         target = user or interaction.user
@@ -1538,6 +1545,21 @@ def register_commands(bot: TTSModachiBot) -> None:
             await interaction.response.send_message(f"TTS name for {target.mention} is now `{normalized}`.", ephemeral=True)
         else:
             await interaction.response.send_message(f"Reset TTS name for {target.mention}.", ephemeral=True)
+
+    @set_group.command(name="nickname", description="Change the name used in '<name> said'.")
+    async def set_nickname(
+        interaction: discord.Interaction,
+        user: discord.Member | None = None,
+        nickname: str | None = None,
+    ) -> None:
+        await apply_nickname(interaction, user, nickname)
+
+    @bot.tree.command(name="nickname", description="Set the name TTS uses for you in '<name> said'.")
+    async def nickname_command(
+        interaction: discord.Interaction,
+        nickname: str | None = None,
+    ) -> None:
+        await apply_nickname(interaction, None, nickname)
 
     @set_group.command(name="server_voice", description="Set the server default voice.")
     @app_commands.default_permissions(manage_guild=True)

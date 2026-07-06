@@ -291,6 +291,28 @@ def extract_cxi(three_dstool: str, input_cxi: Path, extract_dir: Path, exefs_dir
     )
     require_file(exefs_dir / "code.bin")
     require_file(extract_dir / "exheader.bin")
+    check_remaster_version(extract_dir / "exheader.bin")
+
+
+KNOWN_GOOD_REMASTER_VERSION = 0x0002
+
+
+def check_remaster_version(exheader_bin: Path) -> None:
+    with exheader_bin.open("rb") as handle:
+        handle.seek(0x0E)
+        raw = handle.read(2)
+    if len(raw) != 2:
+        return
+    version = int.from_bytes(raw, "little")
+    print(f"Dump remaster version: {version:04x}")
+    if version != KNOWN_GOOD_REMASTER_VERSION:
+        print()
+        print("WARNING: the TTSmodachi patch was built against remaster version "
+              f"{KNOWN_GOOD_REMASTER_VERSION:04x} (Rev 1 / 'Rev A' update applied).")
+        print("Your dump is a different revision, so the Magikoopa hooks may land at the")
+        print("wrong addresses and the renderer can crash or never become ready.")
+        print("If that happens, dump the updated (Rev 1) version of the game instead.")
+        print()
 
 
 def maybe_decompress_code(three_dstool: str, code_bin: Path, strict: bool) -> None:
