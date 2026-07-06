@@ -29,6 +29,16 @@ LOGGER = logging.getLogger(__name__)
 AUDIO_ID_RE = re.compile(r"^[a-f0-9-]{32,40}$", re.IGNORECASE)
 
 
+def default_install_id() -> str:
+    configured = env_value("TTSMODACHI_ALERTS_INSTALL_ID", "") or ""
+    if configured:
+        return configured
+    secret = env_value("TTSMODACHI_ALERTS_SHARED_SECRET", "") or ""
+    if secret:
+        return f"se-{sha256(secret.encode('utf-8')).hexdigest()[:16]}"
+    return "default"
+
+
 class AlertState:
     def __init__(self) -> None:
         self.renderer = RendererClient(env_value("RENDERER_URL", "http://127.0.0.1:18080") or "http://127.0.0.1:18080")
@@ -346,16 +356,6 @@ def require_alert_secret(request: Request, payload: dict[str, Any]) -> None:
     )
     if not hmac.compare_digest(supplied, secret):
         raise HTTPException(status_code=401, detail="Alert token required")
-
-
-def default_install_id() -> str:
-    configured = env_value("TTSMODACHI_ALERTS_INSTALL_ID", "") or ""
-    if configured:
-        return configured
-    secret = env_value("TTSMODACHI_ALERTS_SHARED_SECRET", "") or ""
-    if secret:
-        return f"se-{sha256(secret.encode('utf-8')).hexdigest()[:16]}"
-    return "default"
 
 
 def absolute_url(request: Request, path: str, configured_base: str) -> str:
