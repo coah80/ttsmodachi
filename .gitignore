@@ -21,3 +21,6 @@ ryubing-work/
 *.exe
 gamePatch/source/main.hks
 newcodeinfo.h
+.env.bak*
+*.bak-*
+deploy-backups/

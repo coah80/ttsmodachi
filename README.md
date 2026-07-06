@@ -12,13 +12,15 @@ this repo does not include ROMs, bring your own legally dumped game files.
 - a warm renderer service so Citra is not booting for every message
 - SQLite storage for server settings, user voices, linked dashboard accounts, and voice targets
 - a web voice panel for changing pitch, speed, quality, tone, accent, intonation, language, and volume
+- optional StreamElements bit alerts through existing AlertBox custom code
+- optional hosted Twitch bits overlay at `stream.coah80.com`
 - optional second bot support for another voice channel in the same server
 - Docker Compose setup for the bot, optional bot2, and renderer worker
 - cache pruning so repeated messages can play faster
 
 ## before you start
 
-you need:
+to self-host the Discord bot, renderer, or alert service, you need:
 
 - Docker Desktop on Windows, or Docker Engine on Linux
 - Git
@@ -26,6 +28,8 @@ you need:
 - Message Content Intent enabled for the bot in the Discord Developer Portal
 - a legally dumped Tomodachi Life CXI
 - enough CPU for Citra workers. start with 1 worker if you are not sure
+
+the StreamElements streamer install does not need Docker. they only need the generated AlertBox custom code if you host the alert service for them.
 
 do not upload ROMs to GitHub. keep them in `roms/` only.
 
@@ -218,6 +222,62 @@ docker compose --profile bot2 up --build -d
 ```
 
 then set `DISCORD_TOKEN_2` and `TTSMODACHI_SECOND_BOT_CLIENT_ID` in `.env`.
+
+## StreamElements bit alerts
+
+the easiest streamer install is hosted: you run the TTSmodachi alert service, then give the streamer finished StreamElements AlertBox custom code.
+
+generate the AlertBox code from your hosted alerts URL:
+
+```powershell
+.\make-alertbox-tts.bat -BaseUrl https://your-alerts-domain.example -InstallId streamer-name
+```
+
+for the hosted `stream.coah80.com` setup:
+
+```powershell
+.\make-alertbox-tts.bat -BaseUrl https://stream.coah80.com -InstallId streamer-name
+```
+
+the streamer appends the generated HTML and JS to the Twitch bits/cheer alert in their existing StreamElements AlertBox. StreamElements keeps the alert queue, normal alert sound, visuals, and OBS overlay; TTSmodachi only renders and plays the Tomodachi voice. no OBS plugin, no DLL, no Docker on their computer.
+
+for local developer testing, start the alert companion:
+
+```sh
+docker compose --profile alerts up --build tts-worker alerts
+```
+
+or on Windows:
+
+```powershell
+.\start-alerts.bat
+```
+
+if Windows says `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`, Docker Desktop is not running. open Docker Desktop, wait for it to fully start, then run `.\start-alerts.bat` again.
+
+open the setup page:
+
+```text
+http://127.0.0.1:18081/setup
+```
+
+append the generated HTML and JS to the StreamElements AlertBox custom code for Twitch bits/cheers. the fallback Custom Widget path is still available with `.\make-streamer-widget.bat` if editing the existing AlertBox is annoying. see `docs/alerts.md` for hosted and local setup details.
+
+## Twitch bits OBS audio source
+
+for the easiest streamer setup, host the stream service and let the streamer add one OBS Browser Source:
+
+```sh
+docker compose --profile stream up --build -d tts-worker stream
+```
+
+public setup page:
+
+```text
+https://stream.coah80.com
+```
+
+the streamer logs in with Twitch, copies their private browser source URL, adds it in OBS, and mutes only their existing alert TTS. random mode picks a different audible voice per bit message. speech is queued FIFO, so simultaneous bits are read one at a time. see `docs/stream.md`.
 
 ## invite it
 

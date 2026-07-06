@@ -305,6 +305,7 @@ class WorkerLane:
         self.process_restart_count = 0
         self.render_retry_count = 0
         self.last_recovery_reason: str | None = None
+        self.reserved_count = 0
 
     def start(self) -> None:
         with self.lifecycle_lock:
@@ -330,17 +331,26 @@ class WorkerLane:
             self.results_thread.start()
 
     def stop(self) -> None:
-        process = self.process
-        inbox = self.inbox
-        if process is not None and process.is_alive():
-            if inbox is not None:
-                inbox.put(None)
-            process.join(timeout=5)
-        if process is not None and process.is_alive():
-            process.kill()
-            process.join(timeout=2)
-        self._kill_known_citra()
-        self._fail_pending(RuntimeError(f"Renderer worker {self.spec.name} stopped"))
+        with self.lifecycle_lock:
+            process = self.process
+            inbox = self.inbox
+            if process is not None and process.is_alive():
+                if inbox is not None:
+                    inbox.put(None)
+                process.join(timeout=5)
+            if process is not None and process.is_alive():
+                process.kill()
+                process.join(timeout=2)
+            self._kill_known_citra()
+            self.ready.clear()
+            self.inbox = None
+            self.outbox = None
+            self.process = None
+            self.results_thread = None
+            self.paused = False
+            self.active_job_count = 0
+            self.reserved_count = 0
+            self._fail_pending(RuntimeError(f"Renderer worker {self.spec.name} stopped"))
 
     def _kill_known_citra(self) -> None:
         pid = self.citra_pid
@@ -420,6 +430,26 @@ class WorkerLane:
         with self.pending_lock:
             return len(self.pending)
 
+    def load_count(self) -> int:
+        with self.pending_lock:
+            return len(self.pending) + self.reserved_count + self.active_job_count
+
+    def reserve(self) -> None:
+        with self.pending_lock:
+            self.reserved_count += 1
+
+    def release_reservation(self) -> None:
+        with self.pending_lock:
+            self.reserved_count = max(0, self.reserved_count - 1)
+
+    def is_alive(self) -> bool:
+        return self.process is not None and self.process.is_alive()
+
+    def idle_seconds(self) -> float | None:
+        if self.last_activity_at is None:
+            return None
+        return max(0.0, time.time() - self.last_activity_at)
+
     def _result_loop(self, process: mp.Process, outbox: mp.Queue) -> None:
         while True:
             try:
@@ -494,10 +524,23 @@ class WorkerLane:
 
 
 class RendererPool:
-    def __init__(self, specs: list[WorkerSpec], render_timeout: float = 20.0) -> None:
+    def __init__(
+        self,
+        specs: list[WorkerSpec],
+        render_timeout: float = 20.0,
+        autoscale: bool = True,
+        min_active_by_rom: dict[str, int] | None = None,
+        scale_down_idle_seconds: float = 60.0,
+    ) -> None:
         self.render_timeout = render_timeout
         self.lanes_by_rom: dict[str, list[WorkerLane]] = {}
         self.next_index: dict[str, int] = {}
+        self.autoscale = autoscale
+        self.min_active_by_rom = min_active_by_rom or {}
+        self.scale_down_idle_seconds = scale_down_idle_seconds
+        self.pool_lock = threading.RLock()
+        self.autoscale_stop = threading.Event()
+        self.autoscale_thread: threading.Thread | None = None
         for spec in specs:
             self.lanes_by_rom.setdefault(spec.rom, []).append(WorkerLane(spec))
             self.next_index.setdefault(spec.rom, 0)
@@ -505,20 +548,49 @@ class RendererPool:
     @classmethod
     def from_env(cls) -> "RendererPool":
         render_timeout = env_float("TTSMODACHI_RENDER_TIMEOUT", 20)
+        autoscale = (env_value("TTSMODACHI_AUTOSCALE_WORKERS", "true") or "true").lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+        default_min_workers = max(1, env_int("TTSMODACHI_MIN_WORKERS", 2))
+        scale_down_idle_seconds = env_float("TTSMODACHI_SCALE_DOWN_IDLE_SECONDS", 60)
         specs: list[WorkerSpec] = []
+        min_active_by_rom: dict[str, int] = {}
         worker_roms = [rom.strip().upper() for rom in (env_value("TTSMODACHI_WORKER_ROMS", "US") or "").split(",") if rom.strip()]
         for rom in worker_roms:
             count = env_int(f"TTSMODACHI_{rom}_WORKERS", 1)
             lang_id = env_int(f"TTSMODACHI_{rom}_LANG_ID", 1)
+            min_active_by_rom[rom] = max(
+                1,
+                min(count, env_int(f"TTSMODACHI_{rom}_MIN_WORKERS", default_min_workers)),
+            )
             for index in range(count):
                 specs.append(WorkerSpec(rom=rom, lang_id=lang_id, port=find_free_udp_port(), name=f"{rom}-{index + 1}"))
-        return cls(specs, render_timeout=render_timeout)
+        return cls(
+            specs,
+            render_timeout=render_timeout,
+            autoscale=autoscale,
+            min_active_by_rom=min_active_by_rom,
+            scale_down_idle_seconds=scale_down_idle_seconds,
+        )
 
     def start(self) -> None:
-        for lane in self._lanes():
-            lane.start()
+        with self.pool_lock:
+            for rom, lanes in self.lanes_by_rom.items():
+                if self.autoscale:
+                    for lane in lanes[: self._min_active(rom)]:
+                        lane.start()
+                else:
+                    for lane in lanes:
+                        lane.start()
+            if self.autoscale and self.autoscale_thread is None:
+                self.autoscale_thread = threading.Thread(target=self._autoscale_loop, daemon=True)
+                self.autoscale_thread.start()
 
     def stop(self) -> None:
+        self.autoscale_stop.set()
         for lane in self._lanes():
             lane.stop()
 
@@ -531,19 +603,78 @@ class RendererPool:
         attempted: set[WorkerLane] = set()
         errors: list[str] = []
         for _ in range(len(lanes)):
-            lane = self._choose_lane(rom, lanes, attempted)
+            with self.pool_lock:
+                self._ensure_capacity(rom, lanes)
+                lane = self._choose_lane(rom, lanes, attempted)
             if lane is None:
                 break
             attempted.add(lane)
+            lane.reserve()
             try:
                 return lane.render(payload, timeout=self.render_timeout)
             except Exception as error:
                 errors.append(f"{lane.spec.name}: {error}")
                 if lane.startup_failed or self._is_worker_recoverable_error(error):
                     lane.restart()
+            finally:
+                lane.release_reservation()
 
         detail = " | ".join(errors[-3:]) if errors else "no workers were available"
         raise RuntimeError(f"All renderer workers failed for ROM {rom}: {detail}")
+
+    def _min_active(self, rom: str) -> int:
+        lanes = self.lanes_by_rom.get(rom) or []
+        return max(1, min(len(lanes), self.min_active_by_rom.get(rom, 1)))
+
+    def _ensure_capacity(self, rom: str, lanes: list[WorkerLane]) -> None:
+        if not self.autoscale:
+            for lane in lanes:
+                lane.start()
+            return
+        running = [lane for lane in lanes if lane.is_alive()]
+        min_active = self._min_active(rom)
+        while len(running) < min_active:
+            lane = next((item for item in lanes if not item.is_alive()), None)
+            if lane is None:
+                break
+            lane.start()
+            running.append(lane)
+        if not running:
+            return
+        running_load = sum(lane.load_count() for lane in running)
+        if running_load < len(running):
+            return
+        lane = next((item for item in lanes if not item.is_alive()), None)
+        if lane is not None:
+            lane.start()
+
+    def _autoscale_loop(self) -> None:
+        while not self.autoscale_stop.wait(5):
+            with self.pool_lock:
+                for rom, lanes in self.lanes_by_rom.items():
+                    self._scale_down_idle_lanes(rom, lanes)
+
+    def _scale_down_idle_lanes(self, rom: str, lanes: list[WorkerLane]) -> None:
+        running = [lane for lane in lanes if lane.is_alive()]
+        min_active = self._min_active(rom)
+        if len(running) <= min_active:
+            return
+        idle_candidates = []
+        for lane in running:
+            idle_seconds = lane.idle_seconds()
+            if idle_seconds is None:
+                continue
+            if lane.load_count() > 0:
+                continue
+            if idle_seconds < self.scale_down_idle_seconds:
+                continue
+            idle_candidates.append((idle_seconds, lane.paused, lane))
+        idle_candidates.sort(key=lambda item: (not item[1], -item[0]))
+        for _, _, lane in idle_candidates:
+            running_count = sum(1 for item in lanes if item.is_alive())
+            if running_count <= min_active:
+                break
+            lane.stop()
 
     def _choose_lane(
         self,
@@ -556,7 +687,7 @@ class RendererPool:
             for lane in lanes
             if lane not in attempted
             and not lane.startup_failed
-            and (lane.process is None or lane.process.is_alive())
+            and lane.is_alive()
         ]
         if not available:
             available = [lane for lane in lanes if lane not in attempted]
@@ -593,7 +724,20 @@ class RendererPool:
         )
 
     def health(self) -> dict[str, Any]:
+        workers = self._lanes()
+        running_by_rom = {
+            rom: sum(1 for lane in lanes if lane.is_alive())
+            for rom, lanes in self.lanes_by_rom.items()
+        }
         return {
+            "autoscale": {
+                "enabled": self.autoscale,
+                "scale_down_idle_seconds": self.scale_down_idle_seconds,
+                "min_active_by_rom": self.min_active_by_rom,
+                "running_by_rom": running_by_rom,
+                "total_running": sum(running_by_rom.values()),
+                "total_configured": len(workers),
+            },
             "workers": [
                 {
                     "name": lane.spec.name,
@@ -618,7 +762,7 @@ class RendererPool:
                     "last_recovery_reason": lane.last_recovery_reason,
                     "last_error": lane.last_error,
                 }
-                for lane in self._lanes()
+                for lane in workers
             ]
         }
 

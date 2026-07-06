@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TTSmodachi Stream</title>
+  <link rel="stylesheet" href="/assets/dashboard.css?v=nolines1">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>TTSmodachi Stream</h1>
+      </div>
+      <div id="account" class="account"></div>
+    </header>
+
+    <section id="signedOut" class="auth-section hidden">
+      <div class="login-row">
+        <h2>Connect Twitch</h2>
+        <a id="loginButton" class="button primary" href="/login">Log in with Twitch</a>
+      </div>
+      <div id="notConfigured" class="notice hidden">Twitch OAuth is not configured on the server yet.</div>
+    </section>
+
+    <section id="dashboard" class="dashboard hidden">
+      <section class="stream-section">
+        <div class="section-head">
+          <div>
+            <h2>Browser source</h2>
+          </div>
+          <button id="copyOverlay" class="button">Copy URL</button>
+        </div>
+        <div class="copy-row">
+          <input id="overlayUrl" readonly>
+        </div>
+        <div class="tutorial">
+          <h3>OBS setup</h3>
+          <ol>
+            <li>Keep “Control audio via OBS” off unless you want it split in the mixer.</li>
+            <li>Mute the old bit TTS in your existing alert tool, but keep the alert sound on.</li>
+            <li>Press test here and watch the browser source receive audio.</li>
+          </ol>
+        </div>
+      </section>
+
+      <div class="split-row">
+        <section class="stream-section">
+          <div class="section-head">
+            <div>
+              <h2>Status</h2>
+              <p id="eventSubText" class="muted">Checking Twitch listener...</p>
+            </div>
+            <span id="statusBadge" class="badge">checking</span>
+          </div>
+          <div class="actions-row">
+            <button id="testButton" class="button primary">Send test bits</button>
+            <p id="testResult" class="muted"></p>
+          </div>
+        </section>
+
+        <form id="settingsForm" class="stream-section">
+          <h2>Settings</h2>
+          <label>
+            <span>Minimum bits</span>
+            <input id="minBits" type="number" min="1" step="1">
+          </label>
+          <label>
+            <span>Voice delay</span>
+            <input id="speechDelaySeconds" type="number" min="0" max="30" step="0.1">
+          </label>
+          <label>
+            <span>Voice</span>
+            <select id="voice"></select>
+          </label>
+          <label class="check">
+            <input id="enabled" type="checkbox">
+            <span>Read bit messages</span>
+          </label>
+          <label class="check">
+            <input id="randomVoice" type="checkbox">
+            <span>Use a random voice each message</span>
+          </label>
+          <label class="check">
+            <input id="includeUsername" type="checkbox">
+            <span>Read the viewer name</span>
+          </label>
+          <label>
+            <span>Message template</span>
+            <input id="messageTemplate">
+          </label>
+          <label>
+            <span>No-message template</span>
+            <input id="noMessageTemplate">
+          </label>
+          <div class="actions-row">
+            <button class="button primary" type="submit">Save settings</button>
+            <p id="saveResult" class="muted"></p>
+          </div>
+        </form>
+      </div>
+
+      <section class="stream-section">
+        <div class="section-head">
+          <div>
+            <h2>Recent reads</h2>
+            <p class="muted">Last bit messages rendered by TTSmodachi.</p>
+          </div>
+          <button id="refreshButton" class="button">Refresh</button>
+        </div>
+        <div id="recentEvents" class="events"></div>
+      </section>
+    </section>
+  </main>
+  <script src="/assets/dashboard.js?v=delay1500"></script>
+</body>
+</html>

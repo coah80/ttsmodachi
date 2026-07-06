@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="${TTSMODACHI_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+ROOT="/home/cole/talkmodachi-bot"
 cd "$ROOT"
 mkdir -p logs
 if [ -f logs/ttsmodachi-watch.pid ]; then

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -u
-ROOT="${TTSMODACHI_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+ROOT="/home/cole/talkmodachi-bot"
 LOG_DIR="$ROOT/logs"
 mkdir -p "$LOG_DIR"
 RUN_ID="${1:-$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -71,7 +71,7 @@ while true; do
   current_epoch=$(now_epoch)
 
   ps_line="$(docker compose ps --services --filter status=running 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
-  inspect="$(docker compose ps -q bot bot2 tts-worker 2>/dev/null | xargs -r docker inspect -f '{{.Name}} restart={{.RestartCount}} oom={{.State.OOMKilled}} status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' 2>/dev/null | tr '\n' ';')"
+  inspect="$(docker inspect -f '{{.Name}} restart={{.RestartCount}} oom={{.State.OOMKilled}} status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' talkmodachi-bot-bot-1 talkmodachi-bot-bot2-1 talkmodachi-bot-tts-worker-1 2>/dev/null | tr '\n' ';')"
   restarts="$(printf '%s' "$inspect" | sed -E 's#[^;]*restart=([0-9]+)[^;]*#\1 #g')"
   if [ -z "$baseline_restarts" ]; then baseline_restarts="$restarts"; fi
 
@@ -98,7 +98,7 @@ while true; do
   if [ "$appfails" -gt 0 ]; then alerts+=("appfails=$appfails"); fi
   if [ "$renderer_fails" -gt 0 ]; then alerts+=("renderer_fails=$renderer_fails"); renderer_problem=1; fi
 
-  stats="$(timeout 10s sh -c 'docker compose ps -q bot bot2 tts-worker 2>/dev/null | xargs -r docker stats --no-stream --format "{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}"' 2>/dev/null | tr '\n' ';' || true)"
+  stats="$(timeout 10s docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}' talkmodachi-bot-bot-1 talkmodachi-bot-bot2-1 talkmodachi-bot-tts-worker-1 2>/dev/null | tr '\n' ';' || true)"
 
   probe="skip"
   if [ $((loop % PROBE_EVERY)) -eq 0 ]; then

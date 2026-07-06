@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TTSmodachi StreamElements Alerts</title>
+    <link rel="stylesheet" href="/assets/setup.css">
+  </head>
+  <body>
+    <main class="page">
+      <section class="header">
+        <div>
+          <h1>TTSmodachi StreamElements Alerts</h1>
+          <p id="statusText">Checking service...</p>
+        </div>
+        <button id="refreshButton" type="button">Refresh</button>
+      </section>
+
+      <section class="grid">
+        <section class="panel">
+          <h2>AlertBox install</h2>
+          <ol>
+            <li>Open the StreamElements overlay they already use.</li>
+            <li>Open the AlertBox widget and the Twitch bits alert.</li>
+            <li>Enable Custom Code, then append these blocks to HTML and JS.</li>
+          </ol>
+          <div class="toolbar">
+            <button id="copyAlertHtmlButton" type="button">Copy HTML</button>
+            <button id="copyAlertJsButton" type="button">Copy JS</button>
+            <button id="downloadAlertBoxButton" type="button">Download</button>
+          </div>
+          <label>
+            HTML tab
+            <textarea id="alertBoxHtml" spellcheck="false"></textarea>
+          </label>
+          <label>
+            JS tab
+            <textarea id="alertBoxJs" spellcheck="false"></textarea>
+          </label>
+          <details>
+            <summary>Separate Custom Widget fallback</summary>
+            <div class="toolbar">
+              <button id="copyWidgetButton" type="button">Copy widget JS</button>
+              <button id="downloadWidgetButton" type="button">Download widget JS</button>
+            </div>
+            <textarea id="widgetCode" spellcheck="false"></textarea>
+          </details>
+        </section>
+
+        <section class="panel">
+          <h2>Test</h2>
+          <form id="testForm">
+            <label>
+              Name
+              <input id="testUser" value="egg" autocomplete="off">
+            </label>
+            <label>
+              Bits
+              <input id="testAmount" type="number" min="1" value="100">
+            </label>
+            <label>
+              Message
+              <textarea id="testMessage" rows="4">thanks for the bits!</textarea>
+            </label>
+            <button type="submit">Play test</button>
+          </form>
+          <dl class="status">
+            <div>
+              <dt>Renderer</dt>
+              <dd id="rendererUrl">-</dd>
+            </div>
+            <div>
+              <dt>Endpoint</dt>
+              <dd id="endpointUrl">-</dd>
+            </div>
+            <div>
+              <dt>Rendered</dt>
+              <dd id="renderedCount">0</dd>
+            </div>
+            <div>
+              <dt>Last event</dt>
+              <dd id="lastEvent">-</dd>
+            </div>
+          </dl>
+        </section>
+      </section>
+    </main>
+    <script src="/assets/setup.js"></script>
+  </body>
+</html>

@@ -58,6 +58,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt --break-system-packages
 
 COPY api /app/api
 COPY ttsmodachi_bot /app/ttsmodachi_bot
+COPY streamelements /app/streamelements
+COPY web /app/web
 COPY --from=citra-builder /src/build/bin/Release /usr/local/bin
 
 RUN mkdir -p /config /cache /data /opt
