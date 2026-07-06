@@ -740,9 +740,60 @@ PANEL_HTML = """<!doctype html>
       font-size: 11px;
       line-height: 1.35;
     }
+    .control-wide {
+      grid-column: 1 / -1;
+    }
     input[type="range"] {
       width: 100%;
       accent-color: var(--accent);
+    }
+    .slider-wrap {
+      position: relative;
+      padding-top: 4px;
+    }
+    .slider-wrap.centered::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 0;
+      transform: translateX(-50%);
+      width: 2px;
+      height: 7px;
+      background: var(--muted);
+      opacity: .55;
+      border-radius: 1px;
+      pointer-events: none;
+    }
+    .intona-group {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .intona-group .intona-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      min-height: 44px;
+      padding: 4px 4px;
+      line-height: 1.1;
+    }
+    .intona-group .intona-name {
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .intona-group .intona-num {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .intona-group .intona-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+    .intona-group .intona-btn.active .intona-num {
+      color: rgba(255, 255, 255, .8);
     }
     select, input[type="text"] {
       width: 100%;
@@ -937,20 +988,22 @@ PANEL_HTML = """<!doctype html>
     };
     if (state.token) sessionStorage.setItem("ttsmodachiToken", state.token);
 
-    // Order and descriptions mirror the in-game Tomodachi Life voice editor.
-    // 50 is the neutral centre for the five tone sliders, matching the game's
-    // default Mii voice. Descriptions are grounded in measured renderer output.
-    const ranges = [
-      ["pitch", "Pitch", 0, 100, 1, "How high or low the voice sits. Lower is deeper, higher is squeakier. 50 is neutral."],
-      ["tone", "Tone", 0, 100, 1, "Brightness of the voice. Higher sounds sharper and thinner, lower sounds rounder and fuller. 50 is neutral."],
-      ["speed", "Speed", 0, 100, 1, "Talking speed. 0 is slow and drawn out, 100 is fast. 50 is a normal pace."],
-      ["quality", "Quality", 0, 100, 1, "Clarity vs. huskiness of the voice. Subtle next to Pitch and Tone. 50 is neutral."],
-      ["accent", "Accent", 0, 100, 1, "How strongly syllables are emphasised. Higher gives a more sing-song, exaggerated delivery. 50 is neutral."],
-      ["intonation", "Intonation", 1, 4, 1, "Sentence melody / mood, like the game's voice moods. 1 flat, 2 gentle, 3 lively, 4 questioning."],
-      ["volume", "Volume", 25, 300, 1, "Playback loudness boost after rendering. 100 is unchanged, higher is louder."]
+    // Match the in-game "Edit Voice" screen: five sliders in the game's exact
+    // top-to-bottom order (Pitch, Speed, Quality, Tone, Accent), then Intonation
+    // as four mood buttons. 50 is the neutral centre (the game's default voice).
+    // The `centered` flag draws a tick at the neutral midpoint. Descriptions are
+    // grounded in measured renderer output.
+    const sliders = [
+      ["pitch", "Pitch", 0, 100, 1, true, "How high or low the voice sits. Lower is deeper, higher is squeakier. 50 is neutral."],
+      ["speed", "Speed", 0, 100, 1, true, "Talking speed. 0 is slow and drawn out, 100 is fast. 50 is a normal pace."],
+      ["quality", "Quality", 0, 100, 1, true, "Clarity vs. huskiness of the voice. Subtle next to Pitch and Tone. 50 is neutral."],
+      ["tone", "Tone", 0, 100, 1, true, "Brightness of the voice. Higher is sharper and thinner, lower is rounder and fuller. 50 is neutral."],
+      ["accent", "Accent", 0, 100, 1, true, "How strongly syllables are emphasised. Higher gives a more sing-song delivery. 50 is neutral."],
+      ["volume", "Volume", 25, 300, 1, false, "Playback loudness boost after rendering. 100 is unchanged, higher is louder."]
     ];
 
-    const INTONATION_LABELS = {1: "Flat", 2: "Gentle", 3: "Lively", 4: "Questioning"};
+    const intonationModes = [[1, "Flat"], [2, "Gentle"], [3, "Lively"], [4, "Questioning"]];
+    const INTONATION_LABELS = Object.fromEntries(intonationModes);
 
     const $ = (id) => document.getElementById(id);
     const LINK_REQUIRED_MESSAGE = "Use /voice to link your account first!";
@@ -975,11 +1028,12 @@ PANEL_HTML = """<!doctype html>
     function renderControls() {
       const controls = $("controls");
       controls.innerHTML = "";
-      for (const [key, label, min, max, step, hint] of ranges) {
+      for (const [key, label, min, max, step, centered, hint] of sliders) {
         const wrap = document.createElement("div");
         wrap.className = "control";
         const hintHtml = hint ? `<span class="hint">${hint}</span>` : "";
-        wrap.innerHTML = `<label for="${key}"><span>${label}</span><output id="${key}Out">${formatValue(key, state.values[key])}</output></label><input id="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${state.values[key]}">${hintHtml}`;
+        const trackClass = centered ? "slider-wrap centered" : "slider-wrap";
+        wrap.innerHTML = `<label for="${key}"><span>${label}</span><output id="${key}Out">${formatValue(key, state.values[key])}</output></label><div class="${trackClass}"><input id="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${state.values[key]}"></div>${hintHtml}`;
         controls.appendChild(wrap);
         $(key).addEventListener("input", (event) => {
           state.values[key] = Number(event.target.value);
@@ -987,6 +1041,24 @@ PANEL_HTML = """<!doctype html>
           updateCommand();
         });
       }
+
+      // Intonation: four mood buttons, like the game's 4-button switch row.
+      const intonaWrap = document.createElement("div");
+      intonaWrap.className = "control control-wide";
+      const buttons = intonationModes.map(([value, name]) =>
+        `<button type="button" class="intona-btn" data-intona="${value}"><span class="intona-name">${name}</span><span class="intona-num">${value}</span></button>`
+      ).join("");
+      intonaWrap.innerHTML = `<label><span>Intonation</span><output id="intonationOut">${formatValue("intonation", state.values.intonation)}</output></label><div class="intona-group" id="intonaGroup">${buttons}</div><span class="hint">Sentence mood, like the game's voice moods. Flat, gentle, lively, or questioning.</span>`;
+      controls.appendChild(intonaWrap);
+      intonaWrap.querySelectorAll(".intona-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.values.intonation = Number(btn.dataset.intona);
+          $("intonationOut").textContent = formatValue("intonation", state.values.intonation);
+          highlightIntonation();
+          updateCommand();
+        });
+      });
+      highlightIntonation();
 
       const langWrap = document.createElement("div");
       langWrap.className = "control";
@@ -1003,11 +1075,22 @@ PANEL_HTML = """<!doctype html>
       });
     }
 
+    function highlightIntonation() {
+      const group = $("intonaGroup");
+      if (!group) return;
+      group.querySelectorAll(".intona-btn").forEach((btn) => {
+        btn.classList.toggle("active", Number(btn.dataset.intona) === state.values.intonation);
+      });
+    }
+
     function updateControlValues() {
-      for (const [key] of ranges) {
+      for (const [key] of sliders) {
         $(key).value = state.values[key];
         $(`${key}Out`).textContent = formatValue(key, state.values[key]);
       }
+      const intonaOut = $("intonationOut");
+      if (intonaOut) intonaOut.textContent = formatValue("intonation", state.values.intonation);
+      highlightIntonation();
       $("lang").value = state.values.lang;
       $("langOut").textContent = state.values.lang;
       updateCommand();

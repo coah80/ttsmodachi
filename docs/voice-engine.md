@@ -69,6 +69,12 @@ Takeaways for the panel:
 - Quality and Accent are fine-detail; keep them but set expectations low.
 - Intonation is four discrete moods, not a continuous slider.
 
+The web panel mirrors the game's "Edit Voice" screen exactly: the five sliders
+appear in the game's top-to-bottom order (Pitch, Speed, Quality, Tone, Accent)
+with a neutral-centre tick at 50, and Intonation is a row of four mood buttons
+(Flat, Gentle, Lively, Questioning) rather than a slider. The whole editor keeps
+the dashboard's existing dark theme instead of imitating the game's art.
+
 ## Internals (partial)
 
 The concrete setters (`0x7d9xxx` in the US dump) index a 10-byte-stride table
