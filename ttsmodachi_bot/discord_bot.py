@@ -1255,7 +1255,6 @@ def register_commands(bot: TTSModachiBot) -> None:
                 [
                     "`/set repeated_characters` - Clamp repeated letters. Manage Server.",
                     "`/set say_name` - Toggle '<name> said'. Manage Server.",
-                    "`/set nickname` - Set a TTS display name. Manage Server.",
                     "`/set say_emoji` - Read emoji names. Manage Server.",
                     "`/set skip_emoji` - Skip emoji. Manage Server.",
                     "`/set bot_ignore` - Ignore bots/webhooks. Manage Server.",
@@ -1523,10 +1522,15 @@ def register_commands(bot: TTSModachiBot) -> None:
         rendered = "off" if limit == 0 else str(limit)
         await interaction.response.send_message(f"Repeated character clamp is now {rendered}.", ephemeral=True)
 
-    async def apply_nickname(
+    @bot.tree.command(name="nickname", description="Set the name TTS uses in '<name> said'.")
+    @app_commands.describe(
+        nickname="The name to use. Leave empty to reset.",
+        user="Someone else to rename. Needs Manage Nicknames.",
+    )
+    async def nickname_command(
         interaction: discord.Interaction,
-        user: discord.Member | None,
-        nickname: str | None,
+        nickname: str | None = None,
+        user: discord.Member | None = None,
     ) -> None:
         assert interaction.guild is not None
         target = user or interaction.user
@@ -1545,21 +1549,6 @@ def register_commands(bot: TTSModachiBot) -> None:
             await interaction.response.send_message(f"TTS name for {target.mention} is now `{normalized}`.", ephemeral=True)
         else:
             await interaction.response.send_message(f"Reset TTS name for {target.mention}.", ephemeral=True)
-
-    @set_group.command(name="nickname", description="Change the name used in '<name> said'.")
-    async def set_nickname(
-        interaction: discord.Interaction,
-        user: discord.Member | None = None,
-        nickname: str | None = None,
-    ) -> None:
-        await apply_nickname(interaction, user, nickname)
-
-    @bot.tree.command(name="nickname", description="Set the name TTS uses for you in '<name> said'.")
-    async def nickname_command(
-        interaction: discord.Interaction,
-        nickname: str | None = None,
-    ) -> None:
-        await apply_nickname(interaction, None, nickname)
 
     @set_group.command(name="server_voice", description="Set the server default voice.")
     @app_commands.default_permissions(manage_guild=True)
