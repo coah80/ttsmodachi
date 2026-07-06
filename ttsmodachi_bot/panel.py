@@ -983,7 +983,7 @@ PANEL_HTML = """<!doctype html>
         accent: 50,
         intonation: 1,
         lang: "useng",
-        volume: 165
+        volume: 200
       }
     };
     if (state.token) sessionStorage.setItem("ttsmodachiToken", state.token);
@@ -991,15 +991,14 @@ PANEL_HTML = """<!doctype html>
     // Match the in-game "Edit Voice" screen: five sliders in the game's exact
     // top-to-bottom order (Pitch, Speed, Quality, Tone, Accent), then Intonation
     // as four mood buttons. 50 is the neutral centre (the game's default voice).
-    // The `centered` flag draws a tick at the neutral midpoint. Descriptions are
-    // grounded in measured renderer output.
+    // The `centered` flag draws a tick at the neutral midpoint.
     const sliders = [
-      ["pitch", "Pitch", 0, 100, 1, true, "How high or low the voice sits. Lower is deeper, higher is squeakier. 50 is neutral."],
-      ["speed", "Speed", 0, 100, 1, true, "Talking speed. 0 is slow and drawn out, 100 is fast. 50 is a normal pace."],
-      ["quality", "Quality", 0, 100, 1, true, "Clarity vs. huskiness of the voice. Subtle next to Pitch and Tone. 50 is neutral."],
-      ["tone", "Tone", 0, 100, 1, true, "Brightness of the voice. Higher is sharper and thinner, lower is rounder and fuller. 50 is neutral."],
-      ["accent", "Accent", 0, 100, 1, true, "How strongly syllables are emphasised. Higher gives a more sing-song delivery. 50 is neutral."],
-      ["volume", "Volume", 25, 300, 1, false, "Playback loudness boost after rendering. 100 is unchanged, higher is louder."]
+      ["pitch", "Pitch", 0, 100, 1, true],
+      ["speed", "Speed", 0, 100, 1, true],
+      ["quality", "Quality", 0, 100, 1, true],
+      ["tone", "Tone", 0, 100, 1, true],
+      ["accent", "Accent", 0, 100, 1, true],
+      ["volume", "Volume", 25, 300, 1, false]
     ];
 
     const intonationModes = [[1, "Flat"], [2, "Gentle"], [3, "Lively"], [4, "Questioning"]];
@@ -1048,7 +1047,7 @@ PANEL_HTML = """<!doctype html>
       const buttons = intonationModes.map(([value, name]) =>
         `<button type="button" class="intona-btn" data-intona="${value}"><span class="intona-name">${name}</span><span class="intona-num">${value}</span></button>`
       ).join("");
-      intonaWrap.innerHTML = `<label><span>Intonation</span><output id="intonationOut">${formatValue("intonation", state.values.intonation)}</output></label><div class="intona-group" id="intonaGroup">${buttons}</div><span class="hint">Sentence mood, like the game's voice moods. Flat, gentle, lively, or questioning.</span>`;
+      intonaWrap.innerHTML = `<label><span>Intonation</span><output id="intonationOut">${formatValue("intonation", state.values.intonation)}</output></label><div class="intona-group" id="intonaGroup">${buttons}</div>`;
       controls.appendChild(intonaWrap);
       intonaWrap.querySelectorAll(".intona-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1319,7 +1318,7 @@ PANEL_HTML = """<!doctype html>
       setReadyStatus();
     });
     $("reset").addEventListener("click", () => {
-      applyVoice({pitch: 50, speed: 50, quality: 50, tone: 50, accent: 50, intonation: 1, lang: "useng", volume: 165});
+      applyVoice({pitch: 50, speed: 50, quality: 50, tone: 50, accent: 50, intonation: 1, lang: "useng", volume: 200});
       setReadyStatus();
     });
 

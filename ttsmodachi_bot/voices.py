@@ -46,7 +46,7 @@ class VoiceParams:
     accent: int = 50
     intonation: int = 1
     lang: str = "useng"
-    volume: int = 165
+    volume: int = 200
 
     @classmethod
     def from_mapping(cls, values: dict[str, Any] | None) -> "VoiceParams":
@@ -60,7 +60,7 @@ class VoiceParams:
             accent=int(values.get("accent", 50)),
             intonation=int(values.get("intonation", 1)),
             lang=str(values.get("lang", "useng")),
-            volume=int(values.get("volume", 165)),
+            volume=int(values.get("volume", 200)),
         )
         voice.validate()
         return voice
