@@ -611,7 +611,7 @@ PANEL_HTML = """<!doctype html>
       cursor: wait;
     }
     main {
-      width: min(1180px, calc(100vw - 32px));
+      width: min(920px, calc(100vw - 32px));
       margin: 0 auto;
       padding: 24px 0 36px;
     }
@@ -814,80 +814,32 @@ PANEL_HTML = """<!doctype html>
       width: 100%;
       margin-top: 14px;
     }
+    .preset-row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+    .preset-row > button { min-height: 42px; }
     .preset-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 8px;
-    }
-    .preset-grid button {
-      justify-content: start;
-      text-align: left;
-      min-height: 42px;
-    }
-    .command {
-      width: 100%;
-      min-height: 92px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: #0f1116;
-      color: var(--text);
-      padding: 10px;
-      resize: vertical;
-    }
-    .pack-head {
-      display: grid;
-      grid-template-columns: 1fr 112px;
-      gap: 10px;
-      align-items: end;
-    }
-    .samples {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 14px;
-    }
-    .sample {
-      background: #12151b;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
+      flex: 1;
       min-width: 0;
     }
-    .sample strong {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 13px;
-      line-height: 1.2;
-      word-break: break-word;
+    .preset-grid button {
+      min-height: 42px;
+      padding: 0 6px;
     }
-    .sample audio { width: 100%; height: 34px; }
-    .sample .meta {
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 6px;
-      line-height: 1.35;
-    }
-    .meter {
-      height: 8px;
-      background: #0e1014;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      overflow: hidden;
-      margin-top: 14px;
-    }
-    .meter span {
-      display: block;
-      height: 100%;
-      width: 0%;
-      background: var(--accent-2);
-      transition: width .18s ease;
+    @media (max-width: 720px) {
+      .preset-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 860px) {
       main { width: min(100vw - 20px, 720px); padding-top: 14px; }
       header { align-items: flex-start; flex-direction: column; }
       .header-side { justify-content: flex-start; }
-      .layout, .controls, .samples, .preset-grid { grid-template-columns: 1fr; }
-      .pack-head { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
       .status { white-space: normal; }
     }
   </style>
@@ -908,65 +860,25 @@ PANEL_HTML = """<!doctype html>
       </div>
     </header>
 
-    <div class="layout">
-      <div>
-        <section>
-          <h2>Test Message</h2>
-          <textarea class="message" id="message">This is a test message for the discord bot.</textarea>
-          <div class="controls" id="controls"></div>
-          <div class="button-row">
-            <button class="primary" id="play">Play Current</button>
-            <button id="save" disabled>Save To Discord</button>
-            <button id="reset">Reset</button>
-          </div>
-          <audio class="audio" id="audio" controls></audio>
-        </section>
-
-        <section>
-          <div class="pack-head">
-            <div>
-              <h2>Safe Sample Pack</h2>
-              <select id="packMode">
-                <option value="builtins">Built-ins only</option>
-                <option value="matrix">Curated matrix</option>
-                <option value="both">Built-ins + matrix</option>
-              </select>
-            </div>
-            <div>
-              <h2>Limit</h2>
-              <select id="packLimit">
-                <option>12</option>
-                <option selected>24</option>
-                <option>36</option>
-                <option>48</option>
-              </select>
-            </div>
-          </div>
-          <div class="button-row">
-            <button id="pack">Generate Pack</button>
-            <button id="clearPack">Clear</button>
-          </div>
-          <div class="meter"><span id="progress"></span></div>
-          <div class="samples" id="samples"></div>
-        </section>
+    <section>
+      <h2>Presets</h2>
+      <div class="preset-row">
+        <div class="preset-grid" id="presets"></div>
+        <button id="randomVoice">Random Voice</button>
       </div>
+    </section>
 
-      <aside>
-        <section>
-          <h2>Voice Settings</h2>
-          <p class="hint" style="margin:0 0 10px">Like the game: start from a <strong>Preset</strong>, roll a <strong>Random</strong> voice, or tweak the sliders yourself (<strong>Custom</strong>).</p>
-          <div class="button-row" style="margin-top:0">
-            <button id="randomVoice">Random Voice</button>
-          </div>
-          <h2 style="margin-top:14px">Presets</h2>
-          <div class="preset-grid" id="presets"></div>
-        </section>
-        <section>
-          <h2>Discord Voice</h2>
-          <textarea class="command" id="command" readonly></textarea>
-        </section>
-      </aside>
-    </div>
+    <section>
+      <h2>Test Message</h2>
+      <textarea class="message" id="message">This is a test message for the discord bot.</textarea>
+      <div class="controls" id="controls"></div>
+      <div class="button-row">
+        <button class="primary" id="play">Play Current</button>
+        <button id="save" disabled>Save To Discord</button>
+        <button id="reset">Reset</button>
+      </div>
+      <audio class="audio" id="audio" controls></audio>
+    </section>
   </main>
 
   <script>
@@ -1096,11 +1008,12 @@ PANEL_HTML = """<!doctype html>
     }
 
     function updateCommand() {
+      // The command readout element was removed in the clean layout; keep the
+      // hook so existing call sites stay harmless.
+      const el = $("command");
+      if (!el) return;
       const v = voice();
-      const status = state.session
-        ? `Ready to save for Discord user ${state.session.userId}.`
-        : LINK_REQUIRED_MESSAGE;
-      $("command").value = `${status}\n\npitch:${v.pitch} speed:${v.speed} quality:${v.quality} tone:${v.tone} accent:${v.accent} intonation:${v.intonation} lang:${v.lang} volume:${v.volume}`;
+      el.value = `pitch:${v.pitch} speed:${v.speed} quality:${v.quality} tone:${v.tone} accent:${v.accent} intonation:${v.intonation} lang:${v.lang} volume:${v.volume}`;
     }
 
     function requireLinkedSession() {
@@ -1213,67 +1126,6 @@ PANEL_HTML = """<!doctype html>
       }
     }
 
-    function matrixVoices() {
-      const samples = [];
-      const pitches = [25, 50, 75];
-      const speeds = [35, 50, 70];
-      const tones = [25, 50, 75];
-      for (const pitch of pitches) {
-        for (const speed of speeds) {
-          for (const tone of tones) {
-            samples.push({
-              label: `p${pitch} s${speed} t${tone}`,
-              voice: {...voice(), pitch, speed, tone}
-            });
-          }
-        }
-      }
-      return samples;
-    }
-
-    function packVoices() {
-      const mode = $("packMode").value;
-      const items = [];
-      if (mode === "builtins" || mode === "both") {
-        for (const [label, params] of Object.entries(state.builtins)) {
-          items.push({label, voice: {...params, volume: state.values.volume}});
-        }
-      }
-      if (mode === "matrix" || mode === "both") {
-        items.push(...matrixVoices());
-      }
-      return items.slice(0, Number($("packLimit").value));
-    }
-
-    function addSample(result, params) {
-      const el = document.createElement("div");
-      el.className = "sample";
-      el.innerHTML = `<strong>${result.label}</strong><audio controls src="${result.url}"></audio><div class="meta">p${params.pitch} s${params.speed} q${params.quality} t${params.tone} a${params.accent} i${params.intonation} v${params.volume} ${result.cache} ${result.elapsed}ms</div>`;
-      $("samples").appendChild(el);
-    }
-
-    async function generatePack() {
-      const items = packVoices();
-      $("pack").disabled = true;
-      $("progress").style.width = "0%";
-      setStatus(`0/${items.length}`);
-      try {
-        for (let index = 0; index < items.length; index += 1) {
-          const item = items[index];
-          const result = await renderVoice(item.voice, item.label);
-          addSample(result, item.voice);
-          const pct = Math.round(((index + 1) / items.length) * 100);
-          $("progress").style.width = `${pct}%`;
-          setStatus(`${index + 1}/${items.length}`);
-        }
-      } catch (error) {
-        setStatus("failed");
-        alert(String(error.message || error));
-      } finally {
-        $("pack").disabled = false;
-      }
-    }
-
     async function loadConfig() {
       renderControls();
       updateCommand();
@@ -1311,12 +1163,6 @@ PANEL_HTML = """<!doctype html>
 
     $("play").addEventListener("click", playCurrent);
     $("save").addEventListener("click", saveCurrent);
-    $("pack").addEventListener("click", generatePack);
-    $("clearPack").addEventListener("click", () => {
-      $("samples").innerHTML = "";
-      $("progress").style.width = "0%";
-      setReadyStatus();
-    });
     $("reset").addEventListener("click", () => {
       applyVoice({pitch: 50, speed: 50, quality: 50, tone: 50, accent: 50, intonation: 1, lang: "useng", volume: 200});
       setReadyStatus();
