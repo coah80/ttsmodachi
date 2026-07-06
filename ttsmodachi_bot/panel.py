@@ -733,6 +733,13 @@ PANEL_HTML = """<!doctype html>
       min-width: 34px;
       text-align: right;
     }
+    .control .hint {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
     input[type="range"] {
       width: 100%;
       accent-color: var(--accent);
@@ -925,18 +932,28 @@ PANEL_HTML = """<!doctype html>
     };
     if (state.token) sessionStorage.setItem("ttsmodachiToken", state.token);
 
+    // Order and descriptions mirror the in-game Tomodachi Life voice editor.
+    // 50 is the neutral centre for the five tone sliders, matching the game's
+    // default Mii voice. Descriptions are grounded in measured renderer output.
     const ranges = [
-      ["pitch", "Pitch", 0, 100, 1],
-      ["speed", "Speed", 0, 100, 1],
-      ["quality", "Quality", 0, 100, 1],
-      ["tone", "Tone", 0, 100, 1],
-      ["accent", "Accent", 0, 100, 1],
-      ["intonation", "Intonation", 1, 4, 1],
-      ["volume", "Volume", 25, 300, 1]
+      ["pitch", "Pitch", 0, 100, 1, "How high or low the voice sits. Lower is deeper, higher is squeakier. 50 is neutral."],
+      ["tone", "Tone", 0, 100, 1, "Brightness of the voice. Higher sounds sharper and thinner, lower sounds rounder and fuller. 50 is neutral."],
+      ["speed", "Speed", 0, 100, 1, "Talking speed. 0 is slow and drawn out, 100 is fast. 50 is a normal pace."],
+      ["quality", "Quality", 0, 100, 1, "Clarity vs. huskiness of the voice. Subtle next to Pitch and Tone. 50 is neutral."],
+      ["accent", "Accent", 0, 100, 1, "How strongly syllables are emphasised. Higher gives a more sing-song, exaggerated delivery. 50 is neutral."],
+      ["intonation", "Intonation", 1, 4, 1, "Sentence melody / mood, like the game's voice moods. 1 flat, 2 gentle, 3 lively, 4 questioning."],
+      ["volume", "Volume", 25, 300, 1, "Playback loudness boost after rendering. 100 is unchanged, higher is louder."]
     ];
+
+    const INTONATION_LABELS = {1: "Flat", 2: "Gentle", 3: "Lively", 4: "Questioning"};
 
     const $ = (id) => document.getElementById(id);
     const LINK_REQUIRED_MESSAGE = "Use /voice to link your account first!";
+
+    function formatValue(key, value) {
+      if (key === "intonation") return `${value} · ${INTONATION_LABELS[value] || value}`;
+      return value;
+    }
 
     function setStatus(text) {
       $("status").textContent = text;
@@ -953,14 +970,15 @@ PANEL_HTML = """<!doctype html>
     function renderControls() {
       const controls = $("controls");
       controls.innerHTML = "";
-      for (const [key, label, min, max, step] of ranges) {
+      for (const [key, label, min, max, step, hint] of ranges) {
         const wrap = document.createElement("div");
         wrap.className = "control";
-        wrap.innerHTML = `<label for="${key}"><span>${label}</span><output id="${key}Out">${state.values[key]}</output></label><input id="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${state.values[key]}">`;
+        const hintHtml = hint ? `<span class="hint">${hint}</span>` : "";
+        wrap.innerHTML = `<label for="${key}"><span>${label}</span><output id="${key}Out">${formatValue(key, state.values[key])}</output></label><input id="${key}" type="range" min="${min}" max="${max}" step="${step}" value="${state.values[key]}">${hintHtml}`;
         controls.appendChild(wrap);
         $(key).addEventListener("input", (event) => {
           state.values[key] = Number(event.target.value);
-          $(`${key}Out`).textContent = state.values[key];
+          $(`${key}Out`).textContent = formatValue(key, state.values[key]);
           updateCommand();
         });
       }
@@ -983,7 +1001,7 @@ PANEL_HTML = """<!doctype html>
     function updateControlValues() {
       for (const [key] of ranges) {
         $(key).value = state.values[key];
-        $(`${key}Out`).textContent = state.values[key];
+        $(`${key}Out`).textContent = formatValue(key, state.values[key]);
       }
       $("lang").value = state.values.lang;
       $("langOut").textContent = state.values.lang;
