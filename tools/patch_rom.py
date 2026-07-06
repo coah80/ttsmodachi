@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Patch a legally dumped Tomodachi Life CXI for TTSmodachi.
+"""Patch a legally dumped Tomodachi Life game for TTSmodachi.
 
 This helper wraps the annoying 3dstool extract and rebuild steps. Magikoopa is
 still the patch injector, so the helper either runs a user-provided patch command
 or pauses while you open Magikoopa and press Make and Insert.
+
+Input can be a decrypted .cxi, a .app extracted by GodMode9, a .3ds/.cci
+cartridge dump, or a decrypted .cia. Wrapped formats are unwrapped to a CXI
+automatically (.cia needs ctrtool, everything else only needs 3dstool).
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ def main() -> int:
     if region not in REGIONS:
         fail(f"Unknown region {region!r}. Use one of: {', '.join(REGIONS)}")
     if not input_cxi.is_file():
-        fail(f"Input CXI does not exist: {input_cxi}")
+        fail(f"Input file does not exist: {input_cxi}")
     if not patch_source.is_dir():
         fail(f"Patch source directory does not exist: {patch_source}")
 
@@ -53,6 +57,7 @@ def main() -> int:
     patch_dir = work_dir / "gamePatch"
 
     if not args.resume:
+        input_cxi = prepare_input_cxi(three_dstool, args.ctrtool, input_cxi, work_dir)
         extract_cxi(three_dstool, input_cxi, extract_dir, exefs_dir)
         if args.decompress:
             maybe_decompress_code(three_dstool, exefs_dir / "code.bin", args.strict_decompress)
@@ -115,12 +120,19 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Patch a legally dumped Tomodachi Life CXI for TTSmodachi.",
     )
-    parser.add_argument("--input", "-i", type=Path, required=True, help="Path to your legal input CXI.")
+    parser.add_argument(
+        "--input",
+        "-i",
+        type=Path,
+        required=True,
+        help="Path to your legal dump: .cxi, .app, .3ds/.cci cartridge dump, or decrypted .cia.",
+    )
     parser.add_argument("--region", "-r", default="US", help="Output region name: US, EU, JP, or KR. Default: US.")
     parser.add_argument("--output", "-o", type=Path, help="Output CXI path. Default: roms/<REGION>.cxi.")
     parser.add_argument("--work-dir", type=Path, help="Temporary work folder. Default: repo/.rom-patch-work.")
     parser.add_argument("--patch-source", type=Path, help="Patch template folder. Default: repo/gamePatch.")
     parser.add_argument("--three-dstool", default="3dstool", help="3dstool executable path or command name.")
+    parser.add_argument("--ctrtool", default="ctrtool", help="ctrtool executable path or command name (only needed for .cia input).")
     parser.add_argument("--magikoopa", help="Optional Magikoopa executable to launch for the patch step.")
     parser.add_argument(
         "--patch-command",
@@ -166,6 +178,79 @@ def run(command: list[str], cwd: Path | None = None, check: bool = True) -> subp
     if check and result.returncode != 0:
         fail(f"Command failed with exit code {result.returncode}: {' '.join(command)}")
     return result
+
+
+def detect_dump_format(path: Path) -> str:
+    with path.open("rb") as handle:
+        header = handle.read(0x104)
+    if len(header) >= 0x104 and header[0x100:0x104] == b"NCSD":
+        return "ncsd"
+    if len(header) >= 0x104 and header[0x100:0x104] == b"NCCH":
+        return "ncch"
+    if header[:4] == b"\x20\x20\x00\x00":
+        return "cia"
+    return "unknown"
+
+
+def require_ncch(path: Path, source_kind: str) -> None:
+    if detect_dump_format(path) != "ncch":
+        fail(
+            f"The content extracted from your {source_kind} is not a decrypted CXI. "
+            "Your dump is probably still encrypted. Re-dump it decrypted with GodMode9 "
+            "(cartridge: NCSD image options > Decrypt & extract; digital: dump the title decrypted)."
+        )
+
+
+def prepare_input_cxi(three_dstool: str, ctrtool: str, input_path: Path, work_dir: Path) -> Path:
+    fmt = detect_dump_format(input_path)
+    if fmt == "ncch":
+        return input_path
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+    unwrapped = work_dir / "input.cxi"
+
+    if fmt == "ncsd":
+        print(f"{input_path.name} is a .3ds/.cci cartridge dump, extracting partition 0...")
+        run(
+            [
+                three_dstool,
+                "-xvtf",
+                "cci",
+                str(input_path),
+                "--partition0",
+                str(unwrapped),
+            ]
+        )
+        require_file(unwrapped)
+        require_ncch(unwrapped, ".3ds/.cci dump")
+        return unwrapped
+
+    if fmt == "cia":
+        resolved_ctrtool = resolve_tool(ctrtool)
+        if resolved_ctrtool is None:
+            fail(
+                "Input is a .cia, which needs ctrtool to unwrap. "
+                "Pass --ctrtool /path/to/ctrtool or put it on PATH. "
+                "Get it from https://github.com/3DSGuy/Project_CTR/releases"
+            )
+        print(f"{input_path.name} is a .cia, extracting content 0...")
+        prefix = work_dir / "cia-content"
+        run([resolved_ctrtool, f"--contents={prefix}", str(input_path)])
+        candidates = sorted(work_dir.glob("cia-content.0000.*"))
+        if not candidates:
+            fail("ctrtool did not produce content 0 from the .cia. Is the file a valid CIA?")
+        candidates[0].replace(unwrapped)
+        for leftover in work_dir.glob("cia-content.*"):
+            leftover.unlink()
+        require_ncch(unwrapped, ".cia")
+        return unwrapped
+
+    fail(
+        f"Unrecognized input format: {input_path}. Expected a decrypted .cxi/.app, "
+        "a .3ds/.cci cartridge dump, or a decrypted .cia. Encrypted dumps are the "
+        "usual cause; decrypt them with GodMode9 on your 3DS first."
+    )
+    return input_path  # unreachable, keeps type checkers happy
 
 
 def extract_cxi(three_dstool: str, input_cxi: Path, extract_dir: Path, exefs_dir: Path) -> None:

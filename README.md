@@ -92,7 +92,17 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 this part is the least friendly part, sorry. there is a tool way now, and then the manual way if the tool is annoying on your setup.
 
-you need a legal Tomodachi Life dump as a CXI. the renderer expects patched files named like this:
+### where the game dump comes from
+
+you dump your own copy of Tomodachi Life from your own 3DS with custom firmware (Luma3DS + GodMode9). if your 3DS is not modded yet, follow https://3ds.hacks.guide first.
+
+- physical cartridge: in GodMode9, open the gamecart, use `NCSD image options` > `Decrypt & extract` (or dump the cart as a decrypted `.3ds`)
+- digital / eShop copy: in GodMode9, find the installed title and dump it decrypted. a `.cia`, or the extracted `.app` content, both work
+- already have a dump on your PC: `.cxi`, `.app`, `.3ds`/`.cci`, and decrypted `.cia` are all accepted by the patch tool below, it unwraps them itself
+
+the one thing that does not work is an **encrypted** dump. if the tool complains about encryption, re-dump with GodMode9 using a decrypt option.
+
+the renderer expects patched files named like this:
 
 ```text
 roms/US.cxi
@@ -110,12 +120,14 @@ TTSMODACHI_US_WORKERS=1
 
 ### tool way
 
-you still need `3dstool` and Magikoopa installed. the helper does the extract and rebuild steps, then pauses while you run the Magikoopa patch step.
+you still need `3dstool` and Magikoopa installed (`ctrtool` too if your input is a `.cia`). the helper does the extract and rebuild steps, then pauses while you run the Magikoopa patch step.
 
-from the repo folder:
+from the repo folder, with any accepted format:
 
 ```sh
 python tools/patch_rom.py --input ./TomodachiLife.cxi --region US
+python tools/patch_rom.py --input ./TomodachiLife.3ds --region US
+python tools/patch_rom.py --input ./TomodachiLife.cia --region US
 ```
 
 on Windows, if `python` is not on PATH:
@@ -185,8 +197,9 @@ mv ./US.cxi ./roms/US.cxi
 tools you probably need:
 
 - `3dstool`: https://github.com/dnasdw/3dstool
+- `ctrtool` (only for `.cia` input): https://github.com/3DSGuy/Project_CTR/releases
 - Magikoopa: https://github.com/RicBent/Magikoopa
-- GodMode9 on your own 3DS for dumping your own game
+- GodMode9 on your own 3DS for dumping your own game: https://github.com/d0k3/GodMode9
 
 ## run it
 
