@@ -51,6 +51,41 @@ MAINTENANCE_RESTART_MESSAGE = env_value(
 )
 MAINTENANCE_NOTICE_TIMEOUT_SECONDS = env_float("TTSMODACHI_MAINTENANCE_NOTICE_TIMEOUT_SECONDS", 20.0)
 VOICE_CONNECT_EXCEPTIONS = (discord.ClientException, aiohttp.ClientError, asyncio.TimeoutError, TimeoutError)
+VOICE_ACCESS_NOTICE_SECONDS = env_float("TTSMODACHI_VOICE_ACCESS_NOTICE_SECONDS", 600.0)
+
+
+class VoiceAccessDenied(discord.ClientException):
+    def __init__(self, channel: discord.VoiceChannel | discord.StageChannel, problem: str) -> None:
+        self.channel = channel
+        self.problem = problem
+        super().__init__(f"Cannot join voice channel {channel.id}: {problem}")
+
+    def user_message(self) -> str:
+        return f"I can't join {self.channel.mention}: {self.problem}."
+
+
+def voice_access_problem(channel: discord.VoiceChannel | discord.StageChannel) -> str | None:
+    me = channel.guild.me
+    if me is None:
+        return None
+    permissions = channel.permissions_for(me)
+    needs_speak = not isinstance(channel, discord.StageChannel)
+    missing = [
+        label
+        for label, allowed in (
+            ("View Channel", permissions.view_channel),
+            ("Connect", permissions.connect),
+            ("Speak", permissions.speak or not needs_speak),
+        )
+        if not allowed
+    ]
+    if missing:
+        names = missing[0] if len(missing) == 1 else ", ".join(missing[:-1]) + " and " + missing[-1]
+        return f"I need the {names} permission{'s' if len(missing) > 1 else ''} there"
+    in_channel = any(member.id == me.id for member in channel.members)
+    if channel.user_limit and len(channel.members) >= channel.user_limit and not permissions.move_members and not in_channel:
+        return "it's full"
+    return None
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -226,8 +261,23 @@ class GuildPlayer:
         self,
         channel: discord.VoiceChannel | discord.StageChannel,
         status_channel: discord.abc.Messageable | None = None,
+        announce_denied: bool = True,
     ) -> None:
         self._touch()
+        problem = self._join_problem(channel)
+        if problem is not None:
+            denied = VoiceAccessDenied(channel, problem)
+            LOGGER.info(
+                "Not joining voice guild=%s channel=%s because %s",
+                self.guild_id,
+                channel.id,
+                problem,
+            )
+            notice_channel = status_channel or self._status_channel()
+            await self.disconnect(clear_queue=True)
+            if announce_denied:
+                await self._announce_access_denied(notice_channel, denied)
+            raise denied
         self.target_voice_channel_id = channel.id
         if status_channel is not None:
             self.status_channel_id = getattr(status_channel, "id", None)
@@ -340,7 +390,8 @@ class GuildPlayer:
         if channel is None:
             return
         status_channel = self._status_channel()
-        await self._announce_recovery(status_channel)
+        if self._join_problem(channel) is None:
+            await self._announce_recovery(status_channel)
         await self.connect(channel, status_channel)
 
     async def maintain_voice(self) -> None:
@@ -401,6 +452,8 @@ class GuildPlayer:
                     await self.connect(channel, reply_to)
                 await self._play_file(path)
                 self._touch()
+            except VoiceAccessDenied:
+                pass
             except Exception as error:
                 LOGGER.exception("TTS playback job failed")
                 if reply_to is not None:
@@ -562,6 +615,28 @@ class GuildPlayer:
             return 500 <= error.status < 600
         return isinstance(error, aiohttp.ClientConnectionError)
 
+    def _join_problem(self, channel: discord.VoiceChannel | discord.StageChannel) -> str | None:
+        existing = self._current_voice_client()
+        if existing is not None and existing.is_connected() and existing.channel == channel:
+            return None
+        return voice_access_problem(channel)
+
+    async def _announce_access_denied(self, channel: discord.abc.Messageable | None, denied: VoiceAccessDenied) -> None:
+        if channel is None:
+            return
+        now = time.monotonic()
+        notices = self.bot.voice_access_notices
+        last = notices.get(denied.channel.id)
+        if last is not None and now - last < VOICE_ACCESS_NOTICE_SECONDS:
+            return
+        notices[denied.channel.id] = now
+        try:
+            await channel.send(denied.user_message())
+        except discord.Forbidden:
+            LOGGER.info("Could not send Discord voice access notice because Discord denied channel access")
+        except discord.HTTPException:
+            LOGGER.debug("Failed to send Discord voice access notice", exc_info=True)
+
     async def _announce_recovery(self, channel: discord.abc.Messageable | None) -> None:
         now = asyncio.get_running_loop().time()
         if now - self._last_recovery_notice_at < VOICE_RECOVERY_NOTICE_SECONDS:
@@ -621,6 +696,7 @@ class TTSModachiBot(discord.AutoShardedClient):
         self.storage = Storage(os.environ.get("DATABASE_PATH", "/data/ttsmodachi.sqlite3"))
         self.renderer = RendererClient(os.environ.get("RENDERER_URL", "http://tts-worker:8080"))
         self.players: dict[int, GuildPlayer] = {}
+        self.voice_access_notices: dict[int, float] = {}
         self.render_slots = asyncio.Semaphore(env_int("TTSMODACHI_BOT_RENDER_CONCURRENCY", 16))
         self.user_cooldowns: dict[tuple[int, int], float] = {}
         self.sync_commands = env_bool("SYNC_COMMANDS_ON_START", True)
@@ -765,6 +841,8 @@ class TTSModachiBot(discord.AutoShardedClient):
                 try:
                     await player.connect(channel, status_channel)
                     LOGGER.info("Restored voice target guild=%s channel=%s", target.guild_id, target.voice_channel_id)
+                except VoiceAccessDenied:
+                    pass
                 except discord.Forbidden:
                     LOGGER.info(
                         "Dropping active voice target guild=%s channel=%s because Discord denied voice access",
@@ -873,6 +951,8 @@ class TTSModachiBot(discord.AutoShardedClient):
                     player._voice_recovery_failures = 0
                     if player._is_discardable() and (player.task is None or player.task.done()):
                         self.players.pop(player.guild_id, None)
+                except VoiceAccessDenied:
+                    pass
                 except (discord.ClientException, discord.HTTPException, aiohttp.ClientError, asyncio.TimeoutError, TimeoutError) as error:
                     if not player._should_recover_connect_error(error):
                         LOGGER.warning(
@@ -1041,6 +1121,8 @@ class TTSModachiBot(discord.AutoShardedClient):
                 return
             try:
                 await player.connect(target_voice_channel, message.channel)
+            except VoiceAccessDenied:
+                return
             except discord.Forbidden:
                 LOGGER.info(
                     "Autojoin failed because Discord denied voice access guild=%s channel=%s",
@@ -1322,7 +1404,10 @@ def register_commands(bot: TTSModachiBot) -> None:
             return
         await interaction.response.defer(ephemeral=True)
         try:
-            await player.connect(voice_channel, interaction.channel)
+            await player.connect(voice_channel, interaction.channel, announce_denied=False)
+        except VoiceAccessDenied as denied:
+            await interaction.followup.send(denied.user_message(), ephemeral=True)
+            return
         except discord.Forbidden:
             await player.disconnect(clear_queue=False)
             await interaction.followup.send(
